@@ -1,10 +1,3 @@
-//
-//  TaxSuiteApp.swift
-//  TaxSuite
-//
-//  Created by 茂木史明 on 2026/04/11.
-//
-
 import SwiftUI
 import SwiftData
 
@@ -12,7 +5,7 @@ import SwiftData
 struct TaxSuiteApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            ExpenseItem.self, // ここが修正されています
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
