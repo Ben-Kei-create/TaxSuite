@@ -5,7 +5,8 @@ import SwiftData
 struct TaxSuiteApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            ExpenseItem.self, // ここが修正されています
+            ExpenseItem.self,
+            RecurringExpense.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

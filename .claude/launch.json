@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "TaxSuite (iOS Simulator)",
+      "runtimeExecutable": "xcodebuild",
+      "runtimeArgs": [
+        "-project", "TaxSuite.xcodeproj",
+        "-scheme", "TaxSuite",
+        "-destination", "platform=iOS Simulator,name=iPhone 17",
+        "-configuration", "Debug",
+        "build"
+      ],
+      "port": 0
+    }
+  ]
+}
