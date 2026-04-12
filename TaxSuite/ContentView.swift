@@ -7,6 +7,7 @@ struct ContentView: View {
 
     @State private var selectedTab = 0
     @AppStorage("taxRate") private var taxRate: Double = 0.2
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -27,6 +28,14 @@ struct ContentView: View {
                 .tag(3)
         }
         .accentColor(.black)
+        .fullScreenCover(isPresented: Binding(
+            get: { !hasCompletedOnboarding },
+            set: { _ in }
+        )) {
+            OnboardingView {
+                hasCompletedOnboarding = true
+            }
+        }
         .task {
             processPendingWidgetExpenses()
             checkAndAddRecurringExpenses()

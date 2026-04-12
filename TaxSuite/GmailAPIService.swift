@@ -4,7 +4,8 @@
 // 認証トークンは GoogleAuthService.shared.freshAccessToken() から取得する。
 //
 // 必要な Gmail API スコープ（Google Cloud Console > OAuth 同意画面で追加）:
-//   - https://www.googleapis.com/auth/gmail.readonly
+//   - https://www.googleapis.com/auth/gmail.readonly   （メール取得）
+//   - https://www.googleapis.com/auth/gmail.compose    （下書き作成）
 //
 // GoogleAuthService.clientID に設定したクライアント ID と同じプロジェクトで
 // Gmail API を有効にしてください。
@@ -214,6 +215,112 @@ actor GmailAPIService {
         }
     }
 
+    // MARK: - Draft creation
+
+    /// Gmail Drafts API create レスポンス（ID のみ使用）
+    private struct GmailDraftCreateResponse: Decodable { let id: String }
+
+    /// 件名・本文・CSV 添付で Gmail の下書きを作成する。
+    ///
+    /// - Parameters:
+    ///   - to:          宛先メールアドレス（空の場合は To 欄が空の下書きとして保存）
+    ///   - subject:     件名
+    ///   - body:        プレーンテキスト本文
+    ///   - csvURL:      添付 CSV の一時ファイル URL（nil で添付なし）
+    /// - Returns:       作成された Gmail 下書きの ID
+    ///
+    /// 必要スコープ: `https://www.googleapis.com/auth/gmail.compose`
+    @discardableResult
+    func createDraft(to: String, subject: String, body: String, csvURL: URL? = nil) async throws -> String {
+        let token = try await GoogleAuthService.shared.freshAccessToken()
+
+        // MIME メッセージを組み立て
+        let mimeString: String
+        if let csvURL, let csvData = try? Data(contentsOf: csvURL) {
+            mimeString = buildMultipartMime(
+                to: to, subject: subject, body: body,
+                csvData: csvData, csvFileName: csvURL.lastPathComponent
+            )
+        } else {
+            mimeString = buildPlainMime(to: to, subject: subject, body: body)
+        }
+
+        // Gmail API は raw を base64url で要求
+        guard let mimeData = mimeString.data(using: .utf8) else {
+            throw GmailAPIError.invalidRequest
+        }
+        let encoded = mimeData.base64URLEncoded()
+
+        guard let url = URL(string: "\(baseURL)/drafts") else {
+            throw GmailAPIError.invalidRequest
+        }
+        var request = authorizedRequest(url: url, token: token)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let payload: [String: Any] = ["message": ["raw": encoded]]
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+
+        let (data, response) = try await session.data(for: request)
+        try validateHTTPResponse(response, data: data)
+
+        do {
+            let draft = try JSONDecoder().decode(GmailDraftCreateResponse.self, from: data)
+            return draft.id
+        } catch {
+            throw GmailAPIError.decodingError(error)
+        }
+    }
+
+    // MARK: - MIME builders
+
+    /// 添付なしのシンプルな text/plain メッセージ
+    private func buildPlainMime(to: String, subject: String, body: String) -> String {
+        let encodedSubject = Data(subject.utf8).base64EncodedString()
+        let encodedBody    = Data(body.utf8).base64EncodedString()
+        return [
+            "MIME-Version: 1.0",
+            "To: \(to)",
+            "Subject: =?UTF-8?B?\(encodedSubject)?=",
+            "Content-Type: text/plain; charset=utf-8",
+            "Content-Transfer-Encoding: base64",
+            "",
+            encodedBody
+        ].joined(separator: "\r\n")
+    }
+
+    /// text/plain + CSV 添付の multipart/mixed メッセージ
+    private func buildMultipartMime(
+        to: String, subject: String, body: String,
+        csvData: Data, csvFileName: String
+    ) -> String {
+        let boundary      = "TaxSuite_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        let encodedSubject = Data(subject.utf8).base64EncodedString()
+        let encodedBody    = Data(body.utf8).base64EncodedString()
+        let encodedCSV     = csvData.base64EncodedString()
+
+        return [
+            "MIME-Version: 1.0",
+            "To: \(to)",
+            "Subject: =?UTF-8?B?\(encodedSubject)?=",
+            "Content-Type: multipart/mixed; boundary=\"\(boundary)\"",
+            "",
+            "--\(boundary)",
+            "Content-Type: text/plain; charset=utf-8",
+            "Content-Transfer-Encoding: base64",
+            "",
+            encodedBody,
+            "",
+            "--\(boundary)",
+            "Content-Type: text/csv; name=\"\(csvFileName)\"",
+            "Content-Disposition: attachment; filename=\"\(csvFileName)\"",
+            "Content-Transfer-Encoding: base64",
+            "",
+            encodedCSV,
+            "",
+            "--\(boundary)--"
+        ].joined(separator: "\r\n")
+    }
+
     // MARK: - Helpers
 
     private func authorizedRequest(url: URL, token: String) -> URLRequest {
@@ -232,5 +339,18 @@ actor GmailAPIService {
             let message = String(data: data, encoding: .utf8) ?? "Unknown error"
             throw GmailAPIError.apiError(statusCode: http.statusCode, message: message)
         }
+    }
+}
+
+// MARK: - Data + base64url
+
+private extension Data {
+    /// Gmail API が要求する base64url エンコード（RFC 4648 §5）。
+    /// 通常の base64 から `+`→`-`、`/`→`_`、パディング `=` を除去する。
+    func base64URLEncoded() -> String {
+        base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
     }
 }

@@ -110,49 +110,47 @@ struct DashboardView: View {
     var takeHome: Double { TaxCalculator.calculateTakeHome(revenue: currentMonthRevenue, expenses: currentMonthExpense, taxRate: taxRate) }
 
     var quickExpenseTemplates: [QuickExpenseTemplate] {
-        var earliestTemplates: [String: ExpenseItem] = [:]
+        // タイトル単位で重複を除去 → 各タイトルの「最新」エントリを代表として使う
+        var seenTitles = Set<String>()
+        var dedupedExpenses: [ExpenseItem] = []
 
-        for expense in allExpenses.sorted(by: { $0.timestamp < $1.timestamp }) {
+        for expense in allExpenses.sorted(by: { $0.timestamp > $1.timestamp }) {
             let baseTitle = expense.title
                 .replacingOccurrences(of: " (自動)", with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !baseTitle.isEmpty else { continue }
-
-            let key = [baseTitle, expense.category, expense.project, String(Int(expense.amount.rounded()))].joined(separator: "|")
-            guard earliestTemplates[key] == nil else { continue }
-            earliestTemplates[key] = expense
+            let normalizedKey = baseTitle.lowercased()
+            guard seenTitles.insert(normalizedKey).inserted else { continue }
+            dedupedExpenses.append(expense)
         }
 
-        var templates = earliestTemplates
-            .sorted { lhs, rhs in
-                lhs.value.timestamp > rhs.value.timestamp
-            }
-            .map { key, expense in
-                QuickExpenseTemplate(
-                    id: key,
-                    title: expense.title
-                        .replacingOccurrences(of: " (自動)", with: "")
-                        .trimmingCharacters(in: .whitespacesAndNewlines),
-                    amount: expense.amount,
-                    category: expense.category,
-                    project: expense.project,
-                    note: expense.note
-                )
-            }
+        var templates = dedupedExpenses.map { expense in
+            let baseTitle = expense.title
+                .replacingOccurrences(of: " (自動)", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return QuickExpenseTemplate(
+                id: "history-\(baseTitle)",
+                title: baseTitle,
+                amount: expense.amount,
+                category: expense.category,
+                project: expense.project,
+                note: expense.note
+            )
+        }
+
         if templates.count >= 4 {
             return Array(templates.prefix(4))
         }
 
         let fallback = [
-            QuickExpenseTemplate(id: "default-train", title: "電車", amount: 180, category: "交通費", project: "その他", note: ""),
-            QuickExpenseTemplate(id: "default-cafe", title: "カフェ", amount: 600, category: "会議費", project: "エンジニア業", note: ""),
-            QuickExpenseTemplate(id: "default-lunch", title: "昼食", amount: 1000, category: "福利厚生費", project: "その他", note: ""),
-            QuickExpenseTemplate(id: "default-supplies", title: "消耗品", amount: 1500, category: "消耗品費", project: "その他", note: "")
+            QuickExpenseTemplate(id: "default-train",    title: "電車",   amount: 180,  category: "交通費",    project: "その他",      note: ""),
+            QuickExpenseTemplate(id: "default-cafe",     title: "カフェ", amount: 600,  category: "会議費",    project: "エンジニア業", note: ""),
+            QuickExpenseTemplate(id: "default-lunch",    title: "昼食",   amount: 1000, category: "福利厚生費", project: "その他",      note: ""),
+            QuickExpenseTemplate(id: "default-supplies", title: "消耗品", amount: 1500, category: "消耗品費",  project: "その他",      note: "")
         ]
 
-        let existingIDs = Set(templates.map(\.id))
-
-        for template in fallback where !existingIDs.contains(template.id) {
+        let existingTitles = Set(templates.map { $0.title.lowercased() })
+        for template in fallback where !existingTitles.contains(template.title.lowercased()) {
             templates.append(template)
             if templates.count == 4 { break }
         }
@@ -1407,8 +1405,9 @@ struct CSVPreviewView: View {
 struct ReportDraftComposerView: View {
     @Query(sort: \ExpenseItem.timestamp, order: .reverse) private var expenses: [ExpenseItem]
     @Query(sort: \IncomeItem.timestamp, order: .reverse) private var incomes: [IncomeItem]
-    @AppStorage("taxAdvisorName") private var advisorName: String = ""
-    @AppStorage("taxSuiteSenderName") private var senderName: String = ""
+    @AppStorage("taxAdvisorName")      private var advisorName:   String = ""
+    @AppStorage("taxAdvisorEmail")     private var advisorEmail:  String = ""
+    @AppStorage("taxSuiteSenderName")  private var senderName:    String = ""
     @AppStorage("taxSuiteBusinessName") private var businessName: String = ""
 
     let taxRate: Double
@@ -1419,6 +1418,16 @@ struct ReportDraftComposerView: View {
     @State private var note: String = ""
     @State private var sharePayload: SharePayload?
     @State private var exportErrorMessage: String?
+
+    // Gmail 下書き作成の状態
+    @State private var gmailDraftStatus: GmailDraftStatus = .idle
+
+    enum GmailDraftStatus: Equatable {
+        case idle
+        case creating
+        case success
+        case failure(String)
+    }
 
     init(defaultFormat: ExportFormat, taxRate: Double) {
         self.taxRate = taxRate
@@ -1456,6 +1465,15 @@ struct ReportDraftComposerView: View {
 
                 Section(header: Text("相手と差出人").taxSuiteListHeaderStyle()) {
                     TextField("宛名（例: 山田先生）", text: $advisorName)
+                    HStack(spacing: 8) {
+                        Image(systemName: "envelope")
+                            .foregroundColor(.secondary)
+                            .frame(width: 18)
+                        TextField("宛先メールアドレス", text: $advisorEmail)
+                            .keyboardType(.emailAddress)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                    }
                     TextField("差出人名", text: $senderName)
                     TextField("屋号 / 事業名（任意）", text: $businessName)
                 }
@@ -1524,16 +1542,75 @@ struct ReportDraftComposerView: View {
                     .padding(.vertical, 4)
                 }
 
+                // Gmail 直接送信セクション
+                Section {
+                    Button(action: { Task { await createGmailDraft() } }) {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                if gmailDraftStatus == .creating {
+                                    ProgressView()
+                                        .progressViewStyle(.circular)
+                                        .scaleEffect(0.85)
+                                } else if gmailDraftStatus == .success {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                        .font(.system(size: 20))
+                                } else {
+                                    Image(systemName: "tray.and.arrow.up.fill")
+                                        .foregroundColor(.white)
+                                        .font(.system(size: 16))
+                                }
+                            }
+                            .frame(width: 24, height: 24)
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(gmailDraftStatus == .success ? "Gmail に下書きを保存しました" : "Gmail に下書きを作成")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                Text(gmailDraftStatus == .success
+                                     ? "Gmail アプリの「下書き」から確認できます"
+                                     : advisorEmail.isEmpty ? "宛先メールアドレスを入力するとToに自動入力" : "宛先: \(advisorEmail)")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                            Spacer()
+                        }
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 4)
+                    }
+                    .listRowBackground(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(gmailDraftStatus == .success ? Color.green : Color.black)
+                            .padding(.vertical, 2)
+                    )
+                    .disabled(gmailDraftStatus == .creating)
+
+                    if case .failure(let msg) = gmailDraftStatus {
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text(msg)
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                } footer: {
+                    Text("Gmail アカウントにログインしていると、ワンタップで下書きが作成されます。")
+                        .font(.caption2)
+                }
+
+                // フォールバック：共有シート
                 Section {
                     Button(action: shareDraft) {
                         HStack(spacing: 12) {
-                            Image(systemName: "paperplane.fill")
-                                .foregroundColor(.blue)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("共有シートで下書きを開く")
-                                    .font(.headline)
-                                    .foregroundColor(.black)
-                                Text("Mail や Gmail に件名・本文・CSV を渡します")
+                            Image(systemName: "square.and.arrow.up")
+                                .foregroundColor(.secondary)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("共有シートで開く")
+                                    .font(.subheadline)
+                                    .foregroundColor(.primary)
+                                Text("Mail・AirDrop・その他アプリに渡す")
                                     .font(.caption)
                                     .foregroundColor(.gray)
                             }
@@ -1568,6 +1645,52 @@ struct ReportDraftComposerView: View {
                 .taxSuiteAmountStyle(size: 18, weight: .bold, tracking: -0.2)
         }
     }
+
+    // MARK: - Gmail 下書き作成
+
+    @MainActor
+    private func createGmailDraft() async {
+        guard GoogleAuthService.shared.isSignedIn else {
+            gmailDraftStatus = .failure("Googleアカウントにログインしてください（設定 → 連携）")
+            return
+        }
+
+        gmailDraftStatus = .creating
+
+        do {
+            let pkg = try ReportDraftBuilder.makeDraft(
+                expenses: expenses,
+                incomes: incomes,
+                format: selectedFormat,
+                reportType: reportType,
+                advisorName: advisorName,
+                senderName: senderName,
+                businessName: businessName,
+                targetMonth: targetMonth,
+                note: note,
+                taxRate: taxRate
+            )
+
+            try await GmailAPIService.shared.createDraft(
+                to: advisorEmail,
+                subject: pkg.subject,
+                body: pkg.body,
+                csvURL: pkg.attachments.first
+            )
+
+            withAnimation(.spring(response: 0.4)) {
+                gmailDraftStatus = .success
+            }
+            // 3秒後に idle へ戻す
+            try? await Task.sleep(for: .seconds(3))
+            withAnimation { gmailDraftStatus = .idle }
+
+        } catch {
+            gmailDraftStatus = .failure(error.localizedDescription)
+        }
+    }
+
+    // MARK: - 共有シート（フォールバック）
 
     private func shareDraft() {
         do {
