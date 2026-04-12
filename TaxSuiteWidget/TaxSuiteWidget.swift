@@ -100,7 +100,7 @@ struct TaxSuiteWidgetView: View {
                 .background(Color.white.opacity(0.62))
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text("すぐ記録")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
@@ -113,7 +113,7 @@ struct TaxSuiteWidgetView: View {
                         quickAddButton(title: "消耗品", amount: 1500, category: "消耗品費", project: "その他")
                     }
                 }
-                .frame(width: 148, alignment: .topLeading)
+                .frame(width: 138, alignment: .topLeading)
             }
         }
         .padding()
@@ -187,23 +187,19 @@ struct TaxSuiteWidgetView: View {
                 project: project
             )
         ) {
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                 Text(currency(amount))
-                    .font(.system(size: 15, weight: .bold, design: .rounded).monospacedDigit())
+                    .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
                     .foregroundStyle(.primary)
-                    .lineLimit(1)
-                Text(category)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 11)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(Color.white.opacity(0.88))
@@ -215,7 +211,7 @@ struct TaxSuiteWidgetView: View {
             .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(.plain)
-        .frame(minHeight: 68)
+        .frame(minHeight: 56)
     }
 
     private func compactMetricRow(label: String, value: String) -> some View {

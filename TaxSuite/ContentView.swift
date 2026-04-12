@@ -361,7 +361,6 @@ struct QuickExpenseTemplate: Identifiable, Equatable {
     let category: String
     let project: String
     let note: String
-    let subtitle: String
 }
 
 enum ExpenseCommentTemplate {
@@ -1069,43 +1068,49 @@ struct DashboardView: View {
     var takeHome: Double { TaxCalculator.calculateTakeHome(revenue: currentMonthRevenue, expenses: currentMonthExpense, taxRate: taxRate) }
 
     var quickExpenseTemplates: [QuickExpenseTemplate] {
-        var templates: [QuickExpenseTemplate] = []
-        var seen = Set<String>()
+        var earliestTemplates: [String: ExpenseItem] = [:]
 
-        for expense in allExpenses.sorted(by: { $0.timestamp > $1.timestamp }) {
+        for expense in allExpenses.sorted(by: { $0.timestamp < $1.timestamp }) {
             let baseTitle = expense.title
                 .replacingOccurrences(of: " (自動)", with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !baseTitle.isEmpty else { continue }
 
             let key = [baseTitle, expense.category, expense.project, String(Int(expense.amount.rounded()))].joined(separator: "|")
-            guard seen.insert(key).inserted else { continue }
+            guard earliestTemplates[key] == nil else { continue }
+            earliestTemplates[key] = expense
+        }
 
-            templates.append(
+        var templates = earliestTemplates
+            .sorted { lhs, rhs in
+                lhs.value.timestamp > rhs.value.timestamp
+            }
+            .map { key, expense in
                 QuickExpenseTemplate(
                     id: key,
-                    title: baseTitle,
+                    title: expense.title
+                        .replacingOccurrences(of: " (自動)", with: "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines),
                     amount: expense.amount,
                     category: expense.category,
                     project: expense.project,
-                    note: expense.note,
-                    subtitle: expense.category == "未分類" ? expense.project : "\(expense.category)・\(expense.project)"
+                    note: expense.note
                 )
-            )
-
-            if templates.count == 4 {
-                return templates
             }
+        if templates.count >= 4 {
+            return Array(templates.prefix(4))
         }
 
         let fallback = [
-            QuickExpenseTemplate(id: "default-train", title: "電車", amount: 180, category: "交通費", project: "その他", note: "", subtitle: "交通費・その他"),
-            QuickExpenseTemplate(id: "default-cafe", title: "カフェ", amount: 600, category: "会議費", project: "エンジニア業", note: "", subtitle: "会議費・エンジニア業"),
-            QuickExpenseTemplate(id: "default-lunch", title: "昼食", amount: 1000, category: "福利厚生費", project: "その他", note: "", subtitle: "福利厚生費・その他"),
-            QuickExpenseTemplate(id: "default-supplies", title: "消耗品", amount: 1500, category: "消耗品費", project: "その他", note: "", subtitle: "消耗品費・その他")
+            QuickExpenseTemplate(id: "default-train", title: "電車", amount: 180, category: "交通費", project: "その他", note: ""),
+            QuickExpenseTemplate(id: "default-cafe", title: "カフェ", amount: 600, category: "会議費", project: "エンジニア業", note: ""),
+            QuickExpenseTemplate(id: "default-lunch", title: "昼食", amount: 1000, category: "福利厚生費", project: "その他", note: ""),
+            QuickExpenseTemplate(id: "default-supplies", title: "消耗品", amount: 1500, category: "消耗品費", project: "その他", note: "")
         ]
 
-        for template in fallback where !seen.contains(template.id) {
+        let existingIDs = Set(templates.map(\.id))
+
+        for template in fallback where !existingIDs.contains(template.id) {
             templates.append(template)
             if templates.count == 4 { break }
         }
@@ -1145,14 +1150,14 @@ struct DashboardView: View {
             TaxSuiteScreenSurface {
                 ZStack(alignment: .bottom) {
                     ScrollView(showsIndicators: false) {
-                        VStack(spacing: 32) {
+                        VStack(spacing: 26) {
                             mainMetricCard
                             quickAddSection
                             todayExpensesSection
-                            Spacer().frame(height: 112)
+                            Spacer().frame(height: 104)
                         }
                         .padding(.top, 6)
-                        .padding(.bottom, 24)
+                        .padding(.bottom, 20)
                     }
 
                     HStack {
@@ -1166,7 +1171,7 @@ struct DashboardView: View {
                             Image(systemName: "camera.fill")
                                 .font(.system(size: 22, weight: .bold))
                                 .foregroundColor(.white)
-                                .frame(width: 60, height: 60)
+                                .frame(width: 56, height: 56)
                                 .background(Color.black)
                                 .clipShape(Circle())
                                 .shadow(color: .black.opacity(0.22), radius: 6, x: 0, y: 4)
@@ -1181,14 +1186,14 @@ struct DashboardView: View {
                             Image(systemName: "plus")
                                 .font(.system(size: 24, weight: .bold))
                                 .foregroundColor(.white)
-                                .frame(width: 60, height: 60)
+                                .frame(width: 56, height: 56)
                                 .background(Color.black)
                                 .clipShape(Circle())
                                 .shadow(color: .black.opacity(0.22), radius: 6, x: 0, y: 4)
                         }
                     }
                     .padding(.horizontal, 20)
-                    .padding(.bottom, 16)
+                    .padding(.bottom, 14)
                 }
             }
             .navigationTitle("ダッシュボード")
@@ -1211,21 +1216,21 @@ struct DashboardView: View {
     private func openDraftSheet(title: String, amount: Double) { draftTitle = title; draftAmount = String(Int(amount)); showingExpenseSheet = true }
     
     private var mainMetricCard: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 18) {
             VStack(spacing: 8) {
                 Text("今月の推定手取り").font(.subheadline).foregroundColor(.gray)
                 Text("¥\(Int(takeHome).formatted())")
                     .taxSuiteHeroAmountStyle()
                     .foregroundColor(.black)
-            }.padding(.top, 24)
-            Divider().padding(.horizontal, 24)
+            }.padding(.top, 20)
+            Divider().padding(.horizontal, 20)
             HStack(spacing: 0) {
                 metricItem(title: "今月の売上", value: currentMonthRevenue, valueColor: .blue)
                 Divider().frame(height: 30)
                 metricItem(title: "経費(按分後)", value: currentMonthExpense)
                 Divider().frame(height: 30)
                 metricItem(title: "推定税額", value: estimatedTax, valueColor: .red.opacity(0.8))
-            }.padding(.bottom, 24)
+            }.padding(.bottom, 20)
         }.background(Color.white).cornerRadius(24).shadow(color: .black.opacity(0.04), radius: 12, x: 0, y: 6).padding(.horizontal, 20)
     }
     
@@ -1240,22 +1245,16 @@ struct DashboardView: View {
     }
 
     private var quickAddSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("最近よく使う経費")
-                    .taxSuiteSectionHeadingStyle()
-                Text("タップで再追加、長押しで編集")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 4)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("最近よく使う経費")
+                .taxSuiteSectionHeadingStyle()
+                .padding(.horizontal, 24)
+                .padding(.bottom, 2)
 
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                 ForEach(quickExpenseTemplates) { template in
                     QuickAddButton(
                         title: template.title,
-                        subtitle: template.subtitle,
                         amount: template.amount,
                         onTap: { addExpense(template) },
                         onLongPress: { openDraftSheet(title: template.title, amount: template.amount) }
@@ -1267,34 +1266,34 @@ struct DashboardView: View {
     }
     
     private var todayExpensesSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("本日の経費")
                 .taxSuiteSectionHeadingStyle()
                 .padding(.horizontal, 24)
-                .padding(.bottom, 4)
+                .padding(.bottom, 2)
             if todayExpenses.isEmpty { Text("本日の記録はありません").font(.subheadline).foregroundColor(.gray).frame(maxWidth: .infinity, alignment: .center).padding(.top, 20)
             } else {
-                VStack(spacing: 10) {
+                VStack(spacing: 8) {
                     ForEach(todayExpenses) { expense in
                         Button(action: { editingExpense = expense }) {
                             HStack {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(expense.title).font(.body).bold().foregroundColor(.black)
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(expense.title).font(.subheadline).bold().foregroundColor(.black)
                                     if !expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                         Text(expense.note)
-                                            .font(.caption)
+                                            .font(.caption2)
                                             .foregroundColor(.secondary)
-                                            .lineLimit(2)
+                                            .lineLimit(1)
                                     }
-                                    HStack {
-                                        Text(expense.project).font(.caption2).foregroundColor(.gray).padding(.horizontal, 8).padding(.vertical, 4).background(Color.gray.opacity(0.1)).cornerRadius(6)
-                                        if expense.businessRatio < 1.0 { Text("事業割合: \(Int(expense.businessRatio * 100))%").font(.caption2).foregroundColor(.orange).padding(.horizontal, 8).padding(.vertical, 4).background(Color.orange.opacity(0.1)).cornerRadius(6) }
+                                    HStack(spacing: 6) {
+                                        Text(expense.project).font(.caption2).foregroundColor(.gray).padding(.horizontal, 7).padding(.vertical, 3).background(Color.gray.opacity(0.1)).cornerRadius(6)
+                                        if expense.businessRatio < 1.0 { Text("\(Int(expense.businessRatio * 100))%").font(.caption2).foregroundColor(.orange).padding(.horizontal, 7).padding(.vertical, 3).background(Color.orange.opacity(0.1)).cornerRadius(6) }
                                     }
                                 }
                                 Spacer()
-                                VStack(alignment: .trailing) {
+                                VStack(alignment: .trailing, spacing: 3) {
                                     Text("¥\(Int(expense.effectiveAmount).formatted())")
-                                        .taxSuiteAmountStyle(size: 17, weight: .semibold, tracking: -0.2)
+                                        .taxSuiteAmountStyle(size: 16, weight: .semibold, tracking: -0.2)
                                         .foregroundColor(.black)
                                     if expense.businessRatio < 1.0 {
                                         Text("全体: ¥\(Int(expense.amount))")
@@ -1302,8 +1301,8 @@ struct DashboardView: View {
                                             .monospacedDigit()
                                             .foregroundColor(.gray)
                                     }
-                                }
-                            }.padding(16).background(Color.white).cornerRadius(16).shadow(color: .black.opacity(0.02), radius: 4, x: 0, y: 2)
+                                }.fixedSize(horizontal: false, vertical: true)
+                            }.padding(.horizontal, 14).padding(.vertical, 12).background(Color.white).cornerRadius(15).shadow(color: .black.opacity(0.02), radius: 3, x: 0, y: 2)
                         }
                     }
                 }.padding(.horizontal, 20)
@@ -1338,115 +1337,66 @@ struct DashboardView: View {
 
 struct QuickAddButton: View {
     var title: String
-    var subtitle: String
     var amount: Double
     var onTap: () -> Void
     var onLongPress: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 5) {
             Text(title)
-                .font(.headline)
+                .font(.subheadline.weight(.semibold))
                 .foregroundColor(.black)
                 .lineLimit(1)
-            Text(subtitle)
-                .font(.caption)
-                .foregroundColor(.gray)
-                .lineLimit(1)
             Text("¥\(Int(amount))")
-                .taxSuiteAmountStyle(size: 18, weight: .bold, tracking: -0.2)
+                .taxSuiteAmountStyle(size: 17, weight: .bold, tracking: -0.2)
                 .foregroundColor(.black)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 16)
+        .padding(.horizontal, 13)
+        .padding(.vertical, 12)
         .background(Color.white)
         .cornerRadius(16)
-        .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 3)
+        .shadow(color: .black.opacity(0.035), radius: 5, x: 0, y: 3)
         .onTapGesture { onTap() }
         .onLongPressGesture { let g = UIImpactFeedbackGenerator(style: .heavy); g.impactOccurred(); onLongPress() }
     }
 }
 
-// MARK: - 🌟 【新機能】ウォレット風チャージ入力UI（日本円の硬貨・紙幣に完全対応）
+// MARK: - 金額入力
 struct WalletChargeInputView: View {
     @Binding var amountText: String
-    
-    // 実際のお金の単位（500円玉と、高額入力用の5万円を追加）
-    let chargeAmounts = [1, 5, 10, 50, 100, 500, 1000, 5000, 10000, 50000]
-    
-    var body: some View {
-        VStack(spacing: 12) {
-            // 金額表示＆キーボード入力欄
-            HStack {
-                Text("¥")
-                    .taxSuiteAmountStyle(size: 22, weight: .bold)
-                    .foregroundColor(.gray)
-                TextField("0", text: $amountText)
-                    .keyboardType(.numberPad)
-                    .taxSuiteAmountStyle(size: 32, weight: .bold, tracking: -0.4)
-                    .multilineTextAlignment(.trailing)
-            }
-            .padding(.vertical, 8)
-            
-            // 🌟 3列 × 4行の完璧なボタンレイアウト
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                // お金追加ボタン（10個）
-                ForEach(chargeAmounts, id: \.self) { val in
-                    Button(action: { addAmount(val) }) {
-                        Text("+\(val.formatted())")
-                            .taxSuiteAmountStyle(size: 15, weight: .bold)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(Color.blue.opacity(0.1))
-                            .foregroundColor(.blue)
-                            .cornerRadius(10)
-                    }
+
+    private var sanitizedAmountBinding: Binding<String> {
+        Binding(
+            get: { amountText },
+            set: { newValue in
+                let filtered = newValue.filter { character in
+                    character.isNumber || character == "."
                 }
-                
-                // 1文字消す（バックスペース）ボタン
-                Button(action: {
-                    if !amountText.isEmpty {
-                        amountText.removeLast()
-                        let g = UIImpactFeedbackGenerator(style: .light); g.impactOccurred()
-                    }
-                }) {
-                    Image(systemName: "delete.left")
-                        .font(.subheadline).bold()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color.gray.opacity(0.1))
-                        .foregroundColor(.gray)
-                        .cornerRadius(10)
-                }
-                
-                // 全クリアボタン
-                Button(action: {
-                    amountText = ""
-                    let g = UIImpactFeedbackGenerator(style: .rigid); g.impactOccurred()
-                }) {
-                    Text("クリア")
-                        .font(.subheadline).bold()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color.red.opacity(0.1))
-                        .foregroundColor(.red)
-                        .cornerRadius(10)
+
+                let components = filtered.split(separator: ".", omittingEmptySubsequences: false)
+                if components.count <= 2 {
+                    amountText = filtered
+                } else {
+                    amountText = components.prefix(2).joined(separator: ".")
                 }
             }
-        }
-        .padding(.vertical, 4)
+        )
     }
     
-    private func addAmount(_ val: Int) {
-        // 現在のテキストを数値に変換（空の場合は0）
-        let current = Int(amountText) ?? 0
-        // 加算して文字列に戻す
-        amountText = String(current + val)
-        
-        // 押すたびに気持ちいい振動を返す
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.impactOccurred()
+    var body: some View {
+        HStack(spacing: 12) {
+            Text("¥")
+                .taxSuiteAmountStyle(size: 22, weight: .bold)
+                .foregroundColor(.gray)
+
+            TextField("0", text: sanitizedAmountBinding)
+                .keyboardType(.decimalPad)
+                .taxSuiteAmountStyle(size: 32, weight: .bold, tracking: -0.4)
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 4)
     }
 }
 // MARK: - 売上入力シート
@@ -1462,7 +1412,7 @@ struct IncomeEditView: View {
                     Section(header: Text("案件名")) {
                         TextField("例：A社Web制作", text: $title)
                     }
-                    Section(header: Text("金額をチャージ入力")) {
+                    Section(header: Text("金額")) {
                         WalletChargeInputView(amountText: $amountText)
                     }
                     Section(header: Text("プロジェクト")) {
@@ -1568,7 +1518,7 @@ struct ExpenseEditView: View {
                     ) {
                         TextField("例：タクシー代", text: $title)
                     }
-                    Section(header: Text("金額をチャージ入力")) {
+                    Section(header: Text("金額")) {
                         WalletChargeInputView(amountText: $amountText)
                     }
                     Section(header: Text("分類")) {
@@ -1737,7 +1687,7 @@ struct CalendarHistoryView: View {
                         Section { NavigationLink(destination: AllHistoryView(editingExpense: $editingExpense)) { HStack { Image(systemName: "list.bullet.rectangle.portrait").foregroundColor(.blue); Text("すべての入力履歴を見る").fontWeight(.bold).foregroundColor(.blue) }.padding(.vertical, 4) } }
                         Section(header: dailyExpenseHeader) {
                             if dailyExpenses.isEmpty { Text("記録はありません").foregroundColor(.gray) }
-                            else { ForEach(dailyExpenses) { expense in Button(action: { editingExpense = expense }) { HStack { VStack(alignment: .leading, spacing: 4) { Text(expense.title).font(.headline).foregroundColor(.black); Text(expense.project).font(.caption).foregroundColor(.gray); if !expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { Text(expense.note).font(.caption2).foregroundColor(.secondary).lineLimit(2) } }; Spacer(); Text("¥\(Int(expense.effectiveAmount).formatted())").taxSuiteAmountStyle(size: 16, weight: .semibold, tracking: -0.2).foregroundColor(.black) } } } }
+                            else { ForEach(dailyExpenses) { expense in Button(action: { editingExpense = expense }) { HStack { VStack(alignment: .leading, spacing: 3) { Text(expense.title).font(.subheadline.weight(.semibold)).foregroundColor(.black); Text(expense.project).font(.caption2).foregroundColor(.gray); if !expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { Text(expense.note).font(.caption2).foregroundColor(.secondary).lineLimit(1) } }; Spacer(); Text("¥\(Int(expense.effectiveAmount).formatted())").taxSuiteAmountStyle(size: 15, weight: .semibold, tracking: -0.2).foregroundColor(.black) } .padding(.vertical, 2) } } }
                         }
                     }
                     .listStyle(.insetGrouped)
@@ -1770,7 +1720,7 @@ struct AllHistoryView: View {
         }.navigationTitle("すべての履歴").navigationBarTitleDisplayMode(.inline)
     }
     private func expenseRow(_ expense: ExpenseItem) -> some View {
-        Button(action: { editingExpense = expense }) { HStack { VStack(alignment: .leading, spacing: 6) { Text(expense.title).font(.headline).foregroundColor(.black); HStack { Text(expense.project).font(.caption2).foregroundColor(.gray).padding(.horizontal, 8).padding(.vertical, 4).background(Color.gray.opacity(0.1)).cornerRadius(6); Text(expense.timestamp, style: .date).font(.caption2).foregroundColor(.gray) }; if !expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { Text(expense.note).font(.caption2).foregroundColor(.secondary).lineLimit(2) } }; Spacer(); Text("¥\(Int(expense.effectiveAmount).formatted())").taxSuiteAmountStyle(size: 17, weight: .semibold, tracking: -0.2).foregroundColor(.black) }.padding(.vertical, 4) }
+        Button(action: { editingExpense = expense }) { HStack { VStack(alignment: .leading, spacing: 4) { Text(expense.title).font(.subheadline.weight(.semibold)).foregroundColor(.black); HStack { Text(expense.project).font(.caption2).foregroundColor(.gray).padding(.horizontal, 7).padding(.vertical, 3).background(Color.gray.opacity(0.1)).cornerRadius(6); Text(expense.timestamp, style: .date).font(.caption2).foregroundColor(.gray) }; if !expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { Text(expense.note).font(.caption2).foregroundColor(.secondary).lineLimit(1) } }; Spacer(); Text("¥\(Int(expense.effectiveAmount).formatted())").taxSuiteAmountStyle(size: 16, weight: .semibold, tracking: -0.2).foregroundColor(.black) }.padding(.vertical, 2) }
     }
 }
 
@@ -1961,7 +1911,7 @@ struct AnalyticsView: View {
 
     @ViewBuilder
     private func analyticsSummaryCard(title: String, amount: Double, count: Int, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(.black)
@@ -1971,11 +1921,11 @@ struct AnalyticsView: View {
                 .foregroundColor(.black)
 
             Text("\(count)件")
-                .font(.caption)
+                .font(.caption2)
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 6)
+        .padding(.vertical, 4)
         .padding(.horizontal, 2)
         .listRowBackground(tint.opacity(0.10))
     }
@@ -2063,14 +2013,14 @@ struct TaxKnowledgeGlossaryView: View {
         TaxSuiteScreenSurface {
             List {
                 Section {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text("TaxSuite ミニ辞典")
                             .font(.title3.bold())
-                        Text("税務とお金まわりでよく出る言葉を、やさしく確認できる入口です。今後ここに用語を増やしていけます。")
-                            .font(.subheadline)
+                        Text("税務とお金まわりの基本を、短く確認できます。")
+                            .font(.caption)
                             .foregroundColor(.gray)
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 2)
                 }
 
                 ForEach(GlossaryTerm.Category.allCases, id: \.self) { category in
@@ -2155,20 +2105,14 @@ struct CSVPreviewView: View {
         TaxSuiteScreenSurface {
             List {
                 Section {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text("書き出し前の確認")
                             .font(.title3.bold())
                         Text(format.previewSummary)
-                            .font(.subheadline)
+                            .font(.caption)
                             .foregroundColor(.gray)
-
-                        if format.usesAccountingCategoryMapping {
-                            Text("売上は会計ソフト向けに `売上高` として出力されます。経費は下の一覧どおりに整理されます。")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 2)
                 }
 
                 Section(header: Text(sectionTitle).taxSuiteListHeaderStyle()) {
@@ -2314,14 +2258,14 @@ struct ReportDraftComposerView: View {
         TaxSuiteScreenSurface {
             List {
                 Section {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text("報告をそのまま外に出す")
                             .font(.title3.bold())
-                        Text("TaxSuite の数字を、件名・本文・CSV添付まで整えた状態で共有シートへ渡します。")
-                            .font(.subheadline)
+                        Text("件名・本文・CSVをまとめて準備します。")
+                            .font(.caption)
                             .foregroundColor(.gray)
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 2)
                 }
 
                 Section(header: Text("相手と差出人").taxSuiteListHeaderStyle()) {
@@ -2352,9 +2296,6 @@ struct ReportDraftComposerView: View {
                         .frame(minHeight: 88)
                 }
 
-                Text(reportType.subtitle)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
                 }
 
                 Section(header: Text("概要").taxSuiteListHeaderStyle()) {
@@ -2479,6 +2420,13 @@ struct SettingsView: View {
     @State private var exportErrorMessage: String?
     @State private var selectedExportFormat: ExportFormat = .standard
 
+    private var gmailSummaryText: String {
+        if gmailConnected {
+            return gmailAddress.isEmpty ? "連携済み" : gmailAddress
+        }
+        return "未連携"
+    }
+
     var body: some View {
         NavigationStack {
             TaxSuiteScreenSurface {
@@ -2488,14 +2436,9 @@ struct SettingsView: View {
                             isTaxSuiteProEnabled.toggle()
                         } label: {
                             HStack(spacing: 12) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(isTaxSuiteProEnabled ? "TaxSuite Pro を使用中" : "TaxSuite Pro を有効化")
-                                        .font(.headline)
-                                        .foregroundColor(.black)
-                                    Text("テスト用に、領収書まわりのPro導線をすぐ使える状態にします")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
+                                Text("TaxSuite Pro")
+                                    .font(.headline)
+                                    .foregroundColor(.black)
                                 Spacer()
                                 Text(isTaxSuiteProEnabled ? "ON" : "OFF")
                                     .font(.caption.bold())
@@ -2521,14 +2464,9 @@ struct SettingsView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
                                     .foregroundColor(.blue)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("固定費を管理")
-                                        .font(.headline)
-                                        .foregroundColor(.black)
-                                    Text("毎月のサブスクや定額支出を自動入力")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
+                                Text("固定費を管理")
+                                    .font(.headline)
+                                    .foregroundColor(.black)
                             }
                             .padding(.vertical, 4)
                         }
@@ -2548,18 +2486,13 @@ struct SettingsView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: "doc.text.magnifyingglass")
                                     .foregroundColor(.blue)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("書き出し結果をプレビュー")
-                                        .font(.headline)
-                                        .foregroundColor(.black)
-                                    Text(formatPreviewSubtitle)
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
+                                Text("書き出し結果をプレビュー")
+                                    .font(.headline)
+                                    .foregroundColor(.black)
                                 Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.gray)
+                                Text(selectedExportFormat.rawValue)
                                     .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
                             .padding(.vertical, 4)
                         }
@@ -2568,18 +2501,13 @@ struct SettingsView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: "square.and.arrow.up.fill")
                                     .foregroundColor(.orange)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("CSVを書き出す")
-                                        .font(.headline)
-                                        .foregroundColor(.black)
-                                    Text(selectedExportFormat.subtitle)
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
+                                Text("CSVを書き出す")
+                                    .font(.headline)
+                                    .foregroundColor(.black)
                                 Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.gray)
+                                Text(selectedExportFormat.rawValue)
                                     .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
                             .padding(.vertical, 4)
                         }
@@ -2589,18 +2517,13 @@ struct SettingsView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: gmailConnected ? "checkmark.circle.fill" : "envelope.badge")
                                     .foregroundColor(gmailConnected ? .green : .red)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Gmail 連携")
-                                        .font(.headline)
-                                        .foregroundColor(.black)
-                                    Text(gmailConnected ? (gmailAddress.isEmpty ? "連携済み" : gmailAddress) : "最初にここを有効化すると、共有導線を使えるようになります")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
+                                Text("Gmail 連携")
+                                    .font(.headline)
+                                    .foregroundColor(.black)
                                 Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.gray)
+                                Text(gmailSummaryText)
                                     .font(.caption)
+                                    .foregroundColor(gmailConnected ? .green : .secondary)
                             }
                             .padding(.vertical, 4)
                         }
@@ -2610,18 +2533,10 @@ struct SettingsView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: "paperplane.circle.fill")
                                     .foregroundColor(.indigo)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Gmail 用の報告下書き")
-                                        .font(.headline)
-                                        .foregroundColor(.black)
-                                    Text("件名・本文・CSV をまとめて準備")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
+                                Text("Gmail 用の報告下書き")
+                                    .font(.headline)
+                                    .foregroundColor(.black)
                                 Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.gray)
-                                    .font(.caption)
                             }
                             .padding(.vertical, 4)
                         }
@@ -2629,14 +2544,13 @@ struct SettingsView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: "lock.fill")
                                     .foregroundColor(.gray)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Gmail 用の報告下書き")
-                                        .font(.headline)
-                                        .foregroundColor(.gray)
-                                    Text("Gmail を連携すると使えるようになります")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
+                                Text("Gmail 用の報告下書き")
+                                    .font(.headline)
+                                    .foregroundColor(.gray)
+                                Spacer()
+                                Text("ロック")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
                             .padding(.vertical, 4)
                         }
@@ -2646,14 +2560,9 @@ struct SettingsView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: "book.closed.fill")
                                     .foregroundColor(.green)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("税の知識ミニ辞典")
-                                        .font(.headline)
-                                        .foregroundColor(.black)
-                                    Text("税務用語や投資の基本をさっと確認")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
+                                Text("税の知識ミニ辞典")
+                                    .font(.headline)
+                                    .foregroundColor(.black)
                             }
                             .padding(.vertical, 4)
                         }
@@ -2684,12 +2593,6 @@ struct SettingsView: View {
             exportErrorMessage = error.localizedDescription
         }
     }
-
-    private var formatPreviewSubtitle: String {
-        selectedExportFormat.usesAccountingCategoryMapping
-            ? "勘定科目への変換結果を先に確認"
-            : "現在の入力内容がどう出力されるか確認"
-    }
 }
 
 struct RecurringExpensesSettingsView: View {
@@ -2702,14 +2605,14 @@ struct RecurringExpensesSettingsView: View {
         TaxSuiteScreenSurface {
             List {
                 Section {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text("毎月の固定費")
                             .font(.title3.bold())
-                        Text("一度登録しておくと、アプリがアクティブになったタイミングで当月分を自動追加します。")
-                            .font(.subheadline)
+                        Text("登録しておくと、当月分を自動追加します。")
+                            .font(.caption)
                             .foregroundColor(.gray)
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 2)
                 }
 
                 Section("登録済み") {
@@ -2885,14 +2788,14 @@ struct GmailConnectionSettingsView: View {
         TaxSuiteScreenSurface {
             Form {
                 Section {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text("Gmail を先に準備")
                             .font(.title3.bold())
-                        Text("共有ボタンを押したときに、Gmail 向けの下書き導線を使える状態にするための接続ステータスです。")
-                            .font(.subheadline)
+                        Text("下書き共有を使う前に接続しておきます。")
+                            .font(.caption)
                             .foregroundColor(.gray)
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 2)
                 }
 
                 Section("アカウント") {
@@ -2954,14 +2857,14 @@ struct ReceiptImportView: View {
             TaxSuiteScreenSurface {
                 Form {
                     Section {
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 6) {
                             Text("領収書まとめ入力")
                                 .font(.title3.bold())
-                            Text("領収書にある複数の支出を、ここでまとめて登録できます。")
-                                .font(.subheadline)
+                            Text("複数の支出をまとめて登録できます。")
+                                .font(.caption)
                                 .foregroundColor(.gray)
                         }
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 2)
                     }
 
                     ForEach($drafts) { $draft in
@@ -3046,8 +2949,8 @@ struct ProUpgradeView: View {
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .padding(.top, 12)
 
-                Text("テスト用に、ボタンひとつで Pro 状態に切り替えられます。")
-                    .font(.subheadline)
+                Text("テスト用にそのまま有効化できます。")
+                    .font(.caption)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 28)
