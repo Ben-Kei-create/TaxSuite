@@ -16,13 +16,17 @@ struct WidgetQuickExpenseIntent: AppIntent {
     @Parameter(title: "プロジェクト")
     var project: String
 
+    @Parameter(title: "コメント")
+    var note: String
+
     init() {}
 
-    init(title: String, amount: Double, category: String, project: String) {
+    init(title: String, amount: Double, category: String, project: String, note: String = "") {
         self.title = title
         self.amount = amount
         self.category = category
         self.project = project
+        self.note = note
     }
 
     func perform() async throws -> some IntentResult {
@@ -30,7 +34,8 @@ struct WidgetQuickExpenseIntent: AppIntent {
             title: title,
             amount: amount,
             category: category,
-            project: project
+            project: project,
+            note: note
         )
         TaxSuiteWidgetStore.enqueueQuickExpense(action)
         return .result()

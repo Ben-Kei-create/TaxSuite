@@ -36,8 +36,7 @@ struct TaxSuiteApp: App {
     }()
     var body: some Scene {
         WindowGroup {
-            ContentView()
-            // 🌟 ここに移動します（Viewに対して適用）
+            TaxSuiteLaunchContainerView()
                 .onOpenURL { url in
                     GoogleAuthService.shared.handle(url)
                 }

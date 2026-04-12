@@ -144,7 +144,8 @@ struct TaxSuiteWidgetView: View {
                 title: slot.title,
                 amount: slot.amount,
                 category: slot.category,
-                project: slot.project
+                project: slot.project,
+                note: slot.note
             )
         ) {
             VStack(alignment: .leading, spacing: 4) {

@@ -90,6 +90,8 @@ struct DashboardView: View {
     @State private var editingExpense: ExpenseItem?
     @State private var showingReceiptImporter = false
     @State private var showingProModal = false
+    @State private var showingShortcutBar = false
+    @State private var shortcutSlots = TaxSuiteWidgetStore.loadButtonSlots()
 
     @State private var draftTitle: String = ""
     @State private var draftAmount: String = ""
@@ -201,35 +203,17 @@ struct DashboardView: View {
                         .padding(.bottom, 20)
                     }
 
-                    HStack {
-                        Button(action: openReceiptImporter) {
-                            Image(systemName: "camera.fill")
-                                .font(.system(size: 22, weight: .bold))
-                                .foregroundColor(.white)
-                                .frame(width: 56, height: 56)
-                                .background(Color.black)
-                                .clipShape(Circle())
-                                .shadow(color: .black.opacity(0.22), radius: 6, x: 0, y: 4)
-                        }
-
-                        Spacer()
-
-                        Menu {
-                            Button(action: openIncomeSheet) { Label("売上を記録", systemImage: "arrow.down.circle.fill") }
-                            Button(action: openNewExpenseSheet) { Label("経費を記録", systemImage: "arrow.up.circle.fill") }
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(.white)
-                                .frame(width: 56, height: 56)
-                                .background(Color.black)
-                                .clipShape(Circle())
-                                .shadow(color: .black.opacity(0.22), radius: 6, x: 0, y: 4)
-                        }
+                    if showingShortcutBar {
+                        shortcutBarOverlay
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .zIndex(2)
+                    } else {
+                        floatingActionButtons
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .zIndex(1)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 14)
                 }
+                .animation(.spring(response: 0.34, dampingFraction: 0.84), value: showingShortcutBar)
             }
             .navigationTitle("ダッシュボード")
             .navigationBarTitleDisplayMode(.inline)
@@ -240,6 +224,7 @@ struct DashboardView: View {
             .sheet(isPresented: $showingProModal) { ProUpgradeView() }
             .task {
                 syncWidgetSnapshot()
+                refreshShortcutSlots()
             }
             .onChange(of: widgetSnapshotFingerprint) { _, _ in
                 syncWidgetSnapshot()
@@ -248,10 +233,12 @@ struct DashboardView: View {
     }
 
     private func openIncomeSheet() {
+        closeShortcutBar()
         showingIncomeSheet = true
     }
 
     private func openReceiptImporter() {
+        closeShortcutBar()
         if isTaxSuiteProEnabled {
             showingReceiptImporter = true
         } else {
@@ -260,15 +247,199 @@ struct DashboardView: View {
     }
 
     private func openNewExpenseSheet() {
+        closeShortcutBar()
         draftTitle = ""
         draftAmount = ""
         showingExpenseSheet = true
     }
 
     private func openDraftSheet(title: String, amount: Double) {
+        closeShortcutBar()
         draftTitle = title
         draftAmount = String(Int(amount))
         showingExpenseSheet = true
+    }
+
+    private func toggleShortcutBar() {
+        if !showingShortcutBar {
+            refreshShortcutSlots()
+        }
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
+            showingShortcutBar.toggle()
+        }
+    }
+
+    private func closeShortcutBar() {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
+            showingShortcutBar = false
+        }
+    }
+
+    private func refreshShortcutSlots() {
+        shortcutSlots = TaxSuiteWidgetStore.loadButtonSlots()
+    }
+
+    private var floatingActionButtons: some View {
+        HStack {
+            Button(action: openReceiptImporter) {
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 56, height: 56)
+                    .background(Color.black)
+                    .clipShape(Circle())
+                    .shadow(color: .black.opacity(0.22), radius: 6, x: 0, y: 4)
+            }
+
+            Spacer()
+
+            Button(action: toggleShortcutBar) {
+                Image(systemName: "plus")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 56, height: 56)
+                    .background(Color.black)
+                    .clipShape(Circle())
+                    .shadow(color: .black.opacity(0.22), radius: 6, x: 0, y: 4)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 14)
+    }
+
+    private var shortcutBarOverlay: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 0) {
+                Divider()
+                    .opacity(0.08)
+
+                HStack(spacing: 8) {
+                    ForEach(shortcutSlots) { slot in
+                        shortcutBarButton(for: slot)
+                    }
+
+                    manualEntryButton
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+                .padding(.bottom, 10)
+                .frame(maxWidth: .infinity)
+                .background(.ultraThinMaterial)
+                .background(Color(white: 0.98).opacity(0.96))
+            }
+        }
+        .ignoresSafeArea(edges: .bottom)
+    }
+
+    private func shortcutBarButton(for slot: WidgetButtonSlot) -> some View {
+        let enabled = !slot.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && slot.amount > 0
+
+        return Button {
+            guard enabled else { return }
+            addShortcutExpense(slot)
+        } label: {
+            VStack(spacing: 6) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.black.opacity(0.06))
+                        .frame(width: 42, height: 42)
+                    Image(systemName: shortcutSymbol(for: slot))
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.black)
+                }
+
+                Text(slot.title.isEmpty ? "未設定" : slot.title)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(enabled ? .black : .secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+    }
+
+    private var manualEntryButton: some View {
+        Menu {
+            Button(action: openNewExpenseSheet) {
+                Label("経費を入力", systemImage: "square.and.pencil")
+            }
+            Button(action: openIncomeSheet) {
+                Label("売上を入力", systemImage: "arrow.down.circle.fill")
+            }
+            Button(action: openReceiptImporter) {
+                Label("領収書から追加", systemImage: "camera.fill")
+            }
+        } label: {
+            VStack(spacing: 6) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.black)
+                        .frame(width: 42, height: 42)
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                }
+
+                Text("手入力")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(.black)
+                    .lineLimit(1)
+            }
+            .frame(width: 56)
+            .padding(.vertical, 4)
+        }
+    }
+
+    private func addShortcutExpense(_ slot: WidgetButtonSlot) {
+        let trimmedTitle = slot.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty, slot.amount > 0 else { return }
+
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+            modelContext.insert(
+                ExpenseItem(
+                    timestamp: Date(),
+                    title: trimmedTitle,
+                    amount: slot.amount,
+                    category: slot.category,
+                    project: TaxSuiteWidgetStore.sanitizeProjectName(slot.project),
+                    businessRatio: 1.0,
+                    note: slot.note
+                )
+            )
+            try? modelContext.save()
+            showingShortcutBar = false
+        }
+
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    private func shortcutSymbol(for slot: WidgetButtonSlot) -> String {
+        let combined = "\(slot.title) \(slot.category)".lowercased()
+
+        if combined.contains("交通") || combined.contains("電車") || combined.contains("タクシー") || combined.contains("新幹線") {
+            return "tram.fill"
+        }
+        if combined.contains("カフェ") || combined.contains("会議") {
+            return "cup.and.saucer.fill"
+        }
+        if combined.contains("昼食") || combined.contains("食") || combined.contains("福利厚生") {
+            return "fork.knife"
+        }
+        if combined.contains("消耗") || combined.contains("備品") || combined.contains("文具") {
+            return "shippingbox.fill"
+        }
+        if combined.contains("通信") || combined.contains("サーバー") || combined.contains("ドメイン") || combined.contains("aws") {
+            return "wifi"
+        }
+        if combined.contains("固定費") || combined.contains("サブスク") {
+            return "arrow.triangle.2.circlepath.circle.fill"
+        }
+        return "yen.circle.fill"
     }
 
     private var mainMetricCard: some View {
@@ -498,6 +669,8 @@ struct IncomeEditView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
+    var income: IncomeItem?
+
     @State private var title: String = ""
     @State private var amountText: String = ""
     @State private var selectedDate: Date = Date()
@@ -536,13 +709,16 @@ struct IncomeEditView: View {
                         }
                         .pickerStyle(.segmented)
                     }
+                    if income != nil {
+                        Section {
+                            Button("この記録を削除", role: .destructive, action: deleteIncome)
+                        }
+                    }
                 }
             }
-            .navigationTitle("売上を追加")
+            .navigationTitle(income == nil ? "売上を追加" : "売上を編集")
             .navigationBarTitleDisplayMode(.inline)
-            .onAppear {
-                project = TaxSuiteWidgetStore.sanitizeProjectName(project, fallbackIndex: 0)
-            }
+            .onAppear(perform: configureOnAppear)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("キャンセル") { dismiss() }
@@ -556,8 +732,34 @@ struct IncomeEditView: View {
         }
     }
 
+    private func configureOnAppear() {
+        if let income {
+            title = income.title
+            amountText = String(Int(income.amount))
+            selectedDate = income.timestamp
+            project = TaxSuiteWidgetStore.sanitizeProjectName(income.project, fallbackIndex: 0)
+        } else {
+            project = TaxSuiteWidgetStore.sanitizeProjectName(project, fallbackIndex: 0)
+        }
+    }
+
     private func saveIncome() {
-        modelContext.insert(IncomeItem(timestamp: selectedDate, title: title, amount: Double(amountText) ?? 0, project: project))
+        let amount = Double(amountText) ?? 0
+        if let income {
+            income.title = title
+            income.amount = amount
+            income.timestamp = selectedDate
+            income.project = project
+        } else {
+            modelContext.insert(IncomeItem(timestamp: selectedDate, title: title, amount: amount, project: project))
+        }
+        dismiss()
+    }
+
+    private func deleteIncome() {
+        guard let income else { return }
+        modelContext.delete(income)
+        try? modelContext.save()
         dismiss()
     }
 }
@@ -716,6 +918,11 @@ struct ExpenseEditView: View {
                         }
                         .padding(.vertical, 8)
                     }
+                    if expense != nil {
+                        Section {
+                            Button("この記録を削除", role: .destructive, action: deleteExpense)
+                        }
+                    }
                 }
             }
             .navigationTitle(expense == nil ? "経費を追加" : "経費を編集")
@@ -785,6 +992,13 @@ struct ExpenseEditView: View {
         dismiss()
     }
 
+    private func deleteExpense() {
+        guard let expense else { return }
+        modelContext.delete(expense)
+        try? modelContext.save()
+        dismiss()
+    }
+
     private func applySuggestion(for rawTitle: String) {
         let trimmedTitle = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         suggestion = ExpenseAutofillPredictor.predict(for: trimmedTitle, from: expenseHistory)
@@ -813,6 +1027,7 @@ struct ExpenseEditView: View {
 }
 
 struct CalendarHistoryView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \ExpenseItem.timestamp, order: .reverse) private var expenses: [ExpenseItem]
     @State private var selectedDate = Date()
     @State private var displayedMonth = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
@@ -884,15 +1099,6 @@ struct CalendarHistoryView: View {
                     contributionCalendarCard
 
                     List {
-                        Section {
-                            NavigationLink(destination: AllHistoryView(editingExpense: $editingExpense)) {
-                                HStack {
-                                    Image(systemName: "list.bullet.rectangle.portrait").foregroundColor(.blue)
-                                    Text("すべての入力履歴を見る").fontWeight(.bold).foregroundColor(.blue)
-                                }
-                                .padding(.vertical, 4)
-                            }
-                        }
                         Section(header: dailyExpenseHeader) {
                             if dailyExpenses.isEmpty {
                                 Text("記録はありません").foregroundColor(.gray)
@@ -915,6 +1121,7 @@ struct CalendarHistoryView: View {
                                         .padding(.vertical, 2)
                                     }
                                 }
+                                .onDelete(perform: deleteDailyExpenses)
                             }
                         }
                     }
@@ -952,7 +1159,7 @@ struct CalendarHistoryView: View {
                     Text(displayedMonthTitle)
                         .font(.headline)
                         .foregroundColor(.black)
-                    Text("緑が濃いほど支出が多い日")
+                    Text("黄=0円 / 緑=支出あり")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -1023,7 +1230,7 @@ struct CalendarHistoryView: View {
 
         ZStack {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(heatmapColor(for: total))
+                .fill(heatmapColor(for: date, total: total))
 
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(
@@ -1033,7 +1240,7 @@ struct CalendarHistoryView: View {
 
             Text(dayNumberString(for: date))
                 .font(.caption2.weight(isSelected ? .bold : .medium))
-                .foregroundColor(dayNumberColor(for: total))
+                .foregroundColor(dayNumberColor(for: date, total: total))
         }
         .frame(height: 36)
     }
@@ -1050,40 +1257,56 @@ struct CalendarHistoryView: View {
         String(calendar.component(.day, from: date))
     }
 
-    private func heatmapColor(for total: Double) -> Color {
-        guard total > 0, maxDailyTotal > 0 else {
-            return Color(red: 0.95, green: 0.97, blue: 0.95)
+    private func heatmapColor(for date: Date, total: Double) -> Color {
+        let today = calendar.startOfDay(for: Date())
+        let normalizedDate = calendar.startOfDay(for: date)
+
+        if normalizedDate > today {
+            return Color.white
         }
 
-        let ratio = total / maxDailyTotal
-        switch ratio {
-        case ..<0.25:
-            return Color(red: 0.84, green: 0.93, blue: 0.83)
-        case ..<0.5:
-            return Color(red: 0.63, green: 0.83, blue: 0.62)
-        case ..<0.75:
-            return Color(red: 0.37, green: 0.71, blue: 0.38)
-        default:
-            return Color(red: 0.17, green: 0.56, blue: 0.22)
+        guard total > 0 else {
+            return Color.yellow.opacity(0.15)
         }
+
+        let intensity = min(total / 10_000.0, 1.0)
+        return Color(
+            red: max(0.12, 0.86 - (0.64 * intensity)),
+            green: max(0.42, 0.97 - (0.40 * intensity)),
+            blue: max(0.14, 0.88 - (0.72 * intensity))
+        )
     }
 
-    private func dayNumberColor(for total: Double) -> Color {
-        let ratio = maxDailyTotal > 0 ? total / maxDailyTotal : 0
-        return ratio >= 0.75 ? .white : .black
+    private func dayNumberColor(for date: Date, total: Double) -> Color {
+        let today = calendar.startOfDay(for: Date())
+        let normalizedDate = calendar.startOfDay(for: date)
+
+        guard normalizedDate <= today, total > 0 else {
+            return .black
+        }
+
+        return min(total / 10_000.0, 1.0) >= 0.72 ? .white : .black
     }
 
     private func legendColor(for level: Int) -> Color {
         switch level {
         case 0:
-            return Color(red: 0.95, green: 0.97, blue: 0.95)
+            return Color.yellow.opacity(0.15)
         case 1:
-            return Color(red: 0.84, green: 0.93, blue: 0.83)
+            return heatmapLegendColor(intensity: 0.25)
         case 2:
-            return Color(red: 0.63, green: 0.83, blue: 0.62)
+            return heatmapLegendColor(intensity: 0.6)
         default:
-            return Color(red: 0.17, green: 0.56, blue: 0.22)
+            return heatmapLegendColor(intensity: 1.0)
         }
+    }
+
+    private func heatmapLegendColor(intensity: Double) -> Color {
+        Color(
+            red: max(0.12, 0.86 - (0.64 * intensity)),
+            green: max(0.42, 0.97 - (0.40 * intensity)),
+            blue: max(0.14, 0.88 - (0.72 * intensity))
+        )
     }
 
     private func shiftMonth(by value: Int) {
@@ -1105,12 +1328,29 @@ struct CalendarHistoryView: View {
     private func startOfMonth(for date: Date) -> Date {
         calendar.date(from: calendar.dateComponents([.year, .month], from: date)) ?? date
     }
+
+    private func deleteDailyExpenses(at offsets: IndexSet) {
+        for index in offsets {
+            modelContext.delete(dailyExpenses[index])
+        }
+        try? modelContext.save()
+    }
 }
 
 struct AllHistoryView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \ExpenseItem.timestamp, order: .reverse) private var allExpenses: [ExpenseItem]
-    @Binding var editingExpense: ExpenseItem?
+    private var externalEditingExpense: Binding<ExpenseItem?>?
     @State private var viewMode: Int = 0
+    @State private var localEditingExpense: ExpenseItem?
+
+    init(editingExpense: Binding<ExpenseItem?>? = nil) {
+        self.externalEditingExpense = editingExpense
+    }
+
+    private var editingExpense: Binding<ExpenseItem?> {
+        externalEditingExpense ?? $localEditingExpense
+    }
 
     var groupedByMonth: [(String, [ExpenseItem])] {
         let dict = Dictionary(grouping: allExpenses) { item in
@@ -1140,12 +1380,16 @@ struct AllHistoryView: View {
                                 ForEach(itemsInMonth) { expense in
                                     expenseRow(expense)
                                 }
+                                .onDelete { offsets in
+                                    deleteExpenses(itemsInMonth, at: offsets)
+                                }
                             }
                         }
                     } else {
                         ForEach(allExpenses) { expense in
                             expenseRow(expense)
                         }
+                        .onDelete(perform: deleteAllExpenses)
                     }
                 }
                 .listStyle(.insetGrouped)
@@ -1153,10 +1397,13 @@ struct AllHistoryView: View {
         }
         .navigationTitle("すべての履歴")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: editingExpense) { expense in
+            ExpenseEditView(expense: expense)
+        }
     }
 
     private func expenseRow(_ expense: ExpenseItem) -> some View {
-        Button(action: { editingExpense = expense }) {
+        Button(action: { editingExpense.wrappedValue = expense }) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(expense.title).font(.subheadline.weight(.semibold)).foregroundColor(.black)
@@ -1181,6 +1428,17 @@ struct AllHistoryView: View {
             }
             .padding(.vertical, 2)
         }
+    }
+
+    private func deleteAllExpenses(at offsets: IndexSet) {
+        deleteExpenses(allExpenses, at: offsets)
+    }
+
+    private func deleteExpenses(_ expenses: [ExpenseItem], at offsets: IndexSet) {
+        for index in offsets {
+            modelContext.delete(expenses[index])
+        }
+        try? modelContext.save()
     }
 }
 
@@ -1724,6 +1982,7 @@ struct ReportDraftComposerView: View {
 }
 
 struct SettingsView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \ExpenseItem.timestamp, order: .reverse) private var expenses: [ExpenseItem]
     @Query(sort: \IncomeItem.timestamp, order: .reverse) private var incomes: [IncomeItem]
     @Binding var taxRate: Double
@@ -1733,6 +1992,9 @@ struct SettingsView: View {
     @State private var exportErrorMessage: String?
     @State private var selectedExportFormat: ExportFormat = .standard
     @State private var projectNameDrafts = TaxSuiteWidgetStore.loadProjectNames()
+    @State private var savedProjectNames = TaxSuiteWidgetStore.loadProjectNames()
+    @State private var isMigratingProjects = false
+    @State private var projectMigrationErrorMessage: String?
     // Google Auth の状態を監視（@Observable singleton）
     @State private var authService = GoogleAuthService.shared
 
@@ -1805,16 +2067,16 @@ struct SettingsView: View {
                             .padding(.vertical, 4)
                         }
                     }
-                    Section(header: Text("ウィジェット")) {
+                    Section(header: Text("ショートカット")) {
                         NavigationLink(destination: WidgetButtonSettingsView()) {
                             HStack(spacing: 12) {
                                 Image(systemName: "square.grid.2x2.fill")
                                     .foregroundColor(.purple)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("クイック追加ボタン")
+                                    Text("ショートカットを設定")
                                         .font(.headline)
                                         .foregroundColor(.black)
-                                    Text("ホーム画面ウィジェットの4ボタンを設定")
+                                    Text("ダッシュボードとホーム画面で共通")
                                         .font(.caption2)
                                         .foregroundColor(.secondary)
                                 }
@@ -1932,6 +2194,26 @@ struct SettingsView: View {
             .sheet(item: $exportFile) { exportFile in
                 ShareSheet(activityItems: [exportFile.url])
             }
+            .overlay {
+                if isMigratingProjects {
+                    ZStack {
+                        Color.black.opacity(0.08)
+                            .ignoresSafeArea()
+
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                            Text("過去データを更新中...")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(.primary)
+                        }
+                        .padding(.horizontal, 22)
+                        .padding(.vertical, 18)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    }
+                    .transition(.opacity)
+                }
+            }
             .alert("CSVを書き出せませんでした", isPresented: Binding(
                 get: { exportErrorMessage != nil },
                 set: { if !$0 { exportErrorMessage = nil } }
@@ -1940,8 +2222,18 @@ struct SettingsView: View {
             } message: {
                 Text(exportErrorMessage ?? "不明なエラーが発生しました。")
             }
+            .alert("プロジェクト名を更新できませんでした", isPresented: Binding(
+                get: { projectMigrationErrorMessage != nil },
+                set: { if !$0 { projectMigrationErrorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(projectMigrationErrorMessage ?? "不明なエラーが発生しました。")
+            }
             .onAppear {
-                projectNameDrafts = TaxSuiteWidgetStore.loadProjectNames()
+                let loadedProjectNames = TaxSuiteWidgetStore.loadProjectNames()
+                projectNameDrafts = loadedProjectNames
+                savedProjectNames = loadedProjectNames
             }
             .onDisappear(perform: saveProjectNames)
         }
@@ -1957,7 +2249,105 @@ struct SettingsView: View {
     }
 
     private func saveProjectNames() {
-        projectNameDrafts = TaxSuiteWidgetStore.saveProjectNames(projectNameDrafts)
+        let previousNames = savedProjectNames
+        let normalizedNames = TaxSuiteWidgetStore.saveProjectNames(projectNameDrafts)
+        projectNameDrafts = normalizedNames
+        savedProjectNames = normalizedNames
+
+        let renamePairs = renamedProjectPairs(from: previousNames, to: normalizedNames)
+        guard !renamePairs.isEmpty else { return }
+
+        Task {
+            await migrateProjectReferences(using: renamePairs)
+        }
+    }
+
+    private func renamedProjectPairs(from previousNames: [String], to nextNames: [String]) -> [(old: String, new: String)] {
+        zip(previousNames, nextNames).compactMap { previousName, nextName in
+            let trimmedPrevious = previousName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedNext = nextName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !trimmedPrevious.isEmpty, !trimmedNext.isEmpty, trimmedPrevious != trimmedNext else {
+                return nil
+            }
+
+            return (old: trimmedPrevious, new: trimmedNext)
+        }
+    }
+
+    @MainActor
+    private func migrateProjectReferences(using renamePairs: [(old: String, new: String)]) async {
+        guard !renamePairs.isEmpty else { return }
+
+        isMigratingProjects = true
+        defer { isMigratingProjects = false }
+
+        await Task.yield()
+
+        let renameLookup = Dictionary(uniqueKeysWithValues: renamePairs.map { ($0.old, $0.new) })
+
+        do {
+            var didChange = false
+
+            let expensesToUpdate = try modelContext.fetch(FetchDescriptor<ExpenseItem>())
+            for (index, expense) in expensesToUpdate.enumerated() {
+                let currentProject = expense.project
+                if let newProject = renameLookup[currentProject], currentProject != newProject {
+                    expense.project = newProject
+                    didChange = true
+                }
+
+                if index > 0 && index.isMultiple(of: 40) {
+                    await Task.yield()
+                }
+            }
+
+            let incomesToUpdate = try modelContext.fetch(FetchDescriptor<IncomeItem>())
+            for (index, income) in incomesToUpdate.enumerated() {
+                let currentProject = income.project
+                if let newProject = renameLookup[currentProject], currentProject != newProject {
+                    income.project = newProject
+                    didChange = true
+                }
+
+                if index > 0 && index.isMultiple(of: 40) {
+                    await Task.yield()
+                }
+            }
+
+            let recurringExpensesToUpdate = try modelContext.fetch(FetchDescriptor<RecurringExpense>())
+            for (index, recurringExpense) in recurringExpensesToUpdate.enumerated() {
+                let currentProject = recurringExpense.project
+                if let newProject = renameLookup[currentProject], currentProject != newProject {
+                    recurringExpense.project = newProject
+                    didChange = true
+                }
+
+                if index > 0 && index.isMultiple(of: 40) {
+                    await Task.yield()
+                }
+            }
+
+            var shortcutSlots = TaxSuiteWidgetStore.loadButtonSlots()
+            var didUpdateShortcutSlots = false
+            for index in shortcutSlots.indices {
+                let currentProject = shortcutSlots[index].project
+                if let newProject = renameLookup[currentProject], currentProject != newProject {
+                    shortcutSlots[index].project = newProject
+                    didUpdateShortcutSlots = true
+                }
+            }
+
+            if didUpdateShortcutSlots {
+                TaxSuiteWidgetStore.saveButtonSlots(shortcutSlots)
+            }
+
+            if didChange {
+                try modelContext.save()
+            }
+        } catch {
+            projectMigrationErrorMessage = error.localizedDescription
+        }
     }
 }
 
@@ -2618,7 +3008,7 @@ struct ProUpgradeView: View {
 
 // MARK: - WidgetButtonSettingsView
 
-/// ウィジェットの 4 つのクイック追加ボタンを設定する画面。
+/// ショートカットの 4 つのクイック追加ボタンを設定する画面。
 /// スロット一覧 + ミニプレビューカード + 各スロットへの編集 NavigationLink を提供する。
 struct WidgetButtonSettingsView: View {
     @Query(sort: \ExpenseItem.timestamp, order: .reverse) private var expenseHistory: [ExpenseItem]
@@ -2662,7 +3052,7 @@ struct WidgetButtonSettingsView: View {
             }
             .listStyle(.insetGrouped)
         }
-        .navigationTitle("ウィジェット設定")
+        .navigationTitle("ショートカット設定")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: slots) { _, newSlots in
             TaxSuiteWidgetStore.saveButtonSlots(newSlots)
@@ -2789,6 +3179,9 @@ struct WidgetSlotEditorView: View {
                     Picker("プロジェクト", selection: $slot.project) {
                         ForEach(projectOptions, id: \.self) { Text($0).tag($0) }
                     }
+
+                    TextField("コメント（任意）", text: $slot.note, axis: .vertical)
+                        .lineLimit(2...4)
                 }
 
                 // 経費履歴から選ぶ
@@ -2869,6 +3262,7 @@ struct WidgetSlotEditorView: View {
         slot.amount   = item.effectiveAmount
         slot.category = item.category
         slot.project  = item.project
+        slot.note     = item.note
         amountText    = String(Int(item.effectiveAmount))
     }
 
@@ -2877,6 +3271,7 @@ struct WidgetSlotEditorView: View {
         slot.amount   = recurring.amount
         slot.category = ExpenseAutofillPredictor.predict(for: recurring.title, from: expenseHistory)?.category ?? "未分類"
         slot.project  = recurring.project
+        slot.note     = ""
         amountText    = String(Int(recurring.amount))
     }
 }

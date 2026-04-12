@@ -37,6 +37,42 @@ nonisolated struct WidgetButtonSlot: Codable, Equatable, Identifiable {
     var amount: Double
     var category: String
     var project: String
+    var note: String
+
+    init(
+        id: Int,
+        title: String,
+        amount: Double,
+        category: String,
+        project: String,
+        note: String = ""
+    ) {
+        self.id = id
+        self.title = title
+        self.amount = amount
+        self.category = category
+        self.project = project
+        self.note = note
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case amount
+        case category
+        case project
+        case note
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        amount = try container.decode(Double.self, forKey: .amount)
+        category = try container.decode(String.self, forKey: .category)
+        project = try container.decode(String.self, forKey: .project)
+        note = try container.decodeIfPresent(String.self, forKey: .note) ?? ""
+    }
 
     /// 出荷時デフォルト（既存のハードコード値と完全一致）
     static var defaultSlots: [WidgetButtonSlot] {
