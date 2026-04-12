@@ -206,9 +206,11 @@ enum ExpenseAutofillPredictor {
     private static func keywords(in value: String) -> Set<String> {
         let normalizedValue = normalized(value)
         guard !normalizedValue.isEmpty else { return [] }
+        let maximumLength = min(4, normalizedValue.count)
+        guard maximumLength >= 2 else { return [normalizedValue] }
 
         var tokens = Set<String>()
-        for length in 2...min(4, normalizedValue.count) {
+        for length in 2...maximumLength {
             guard normalizedValue.count >= length else { continue }
             for index in 0...(normalizedValue.count - length) {
                 let start = normalizedValue.index(normalizedValue.startIndex, offsetBy: index)
@@ -221,13 +223,30 @@ enum ExpenseAutofillPredictor {
     }
 
     private static func normalized(_ value: String) -> String {
-        value
+        let strippedCharacters = CharacterSet.whitespacesAndNewlines
+            .union(.punctuationCharacters)
+            .union(.symbols)
+
+        return value
             .folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: Locale(identifier: "ja_JP"))
             .replacingOccurrences(of: "（自動）", with: "")
             .replacingOccurrences(of: "(自動)", with: "")
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .components(separatedBy: strippedCharacters)
             .joined()
             .lowercased()
+    }
+}
+
+extension View {
+    func taxSuiteAmountStyle(size: CGFloat, weight: Font.Weight = .semibold, tracking: CGFloat = 0) -> some View {
+        self
+            .font(.system(size: size, weight: weight, design: .rounded))
+            .monospacedDigit()
+            .tracking(tracking)
+    }
+
+    func taxSuiteHeroAmountStyle() -> some View {
+        taxSuiteAmountStyle(size: 48, weight: .bold, tracking: -1.2)
     }
 }
 
@@ -546,7 +565,9 @@ struct DashboardView: View {
         VStack(spacing: 20) {
             VStack(spacing: 8) {
                 Text("今月の推定手取り").font(.subheadline).foregroundColor(.gray)
-                Text("¥\(Int(takeHome).formatted())").font(.system(size: 48, weight: .bold, design: .rounded)).foregroundColor(.black)
+                Text("¥\(Int(takeHome).formatted())")
+                    .taxSuiteHeroAmountStyle()
+                    .foregroundColor(.black)
             }.padding(.top, 24)
             Divider().padding(.horizontal, 24)
             HStack(spacing: 0) {
@@ -560,7 +581,13 @@ struct DashboardView: View {
     }
     
     private func metricItem(title: String, value: Double, valueColor: Color = .black) -> some View {
-        VStack(spacing: 6) { Text(title).font(.caption).foregroundColor(.gray); Text("¥\(Int(value).formatted())").font(.headline).foregroundColor(valueColor) }.frame(maxWidth: .infinity)
+        VStack(spacing: 6) {
+            Text(title).font(.caption).foregroundColor(.gray)
+            Text("¥\(Int(value).formatted())")
+                .taxSuiteAmountStyle(size: 17, weight: .semibold, tracking: -0.2)
+                .foregroundColor(valueColor)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private var adBannerSection: some View {
@@ -614,8 +641,15 @@ struct DashboardView: View {
                                 }
                                 Spacer()
                                 VStack(alignment: .trailing) {
-                                    Text("¥\(Int(expense.effectiveAmount).formatted())").font(.headline).foregroundColor(.black)
-                                    if expense.businessRatio < 1.0 { Text("全体: ¥\(Int(expense.amount))").font(.caption2).foregroundColor(.gray) }
+                                    Text("¥\(Int(expense.effectiveAmount).formatted())")
+                                        .taxSuiteAmountStyle(size: 17, weight: .semibold, tracking: -0.2)
+                                        .foregroundColor(.black)
+                                    if expense.businessRatio < 1.0 {
+                                        Text("全体: ¥\(Int(expense.amount))")
+                                            .font(.caption2)
+                                            .monospacedDigit()
+                                            .foregroundColor(.gray)
+                                    }
                                 }
                             }.padding(16).background(Color.white).cornerRadius(16).shadow(color: .black.opacity(0.02), radius: 4, x: 0, y: 2)
                         }
@@ -636,7 +670,13 @@ struct DashboardView: View {
 struct QuickAddButton: View {
     var icon: String; var title: String; var amount: Double; var onTap: () -> Void; var onLongPress: () -> Void
     var body: some View {
-        VStack(spacing: 8) { Text(icon).font(.title2); Text(title).font(.caption2).foregroundColor(.gray); Text("¥\(Int(amount))").font(.caption).bold().foregroundColor(.black) }
+        VStack(spacing: 8) {
+            Text(icon).font(.title2)
+            Text(title).font(.caption2).foregroundColor(.gray)
+            Text("¥\(Int(amount))")
+                .taxSuiteAmountStyle(size: 12, weight: .bold)
+                .foregroundColor(.black)
+        }
         .frame(maxWidth: .infinity).padding(.vertical, 16).background(Color.white).cornerRadius(16).shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 3)
         .onTapGesture { onTap() }
         .onLongPressGesture { let g = UIImpactFeedbackGenerator(style: .heavy); g.impactOccurred(); onLongPress() }
@@ -654,10 +694,12 @@ struct WalletChargeInputView: View {
         VStack(spacing: 12) {
             // 金額表示＆キーボード入力欄
             HStack {
-                Text("¥").font(.title2.bold()).foregroundColor(.gray)
+                Text("¥")
+                    .taxSuiteAmountStyle(size: 22, weight: .bold)
+                    .foregroundColor(.gray)
                 TextField("0", text: $amountText)
                     .keyboardType(.numberPad)
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .taxSuiteAmountStyle(size: 32, weight: .bold, tracking: -0.4)
                     .multilineTextAlignment(.trailing)
             }
             .padding(.vertical, 8)
@@ -668,7 +710,7 @@ struct WalletChargeInputView: View {
                 ForEach(chargeAmounts, id: \.self) { val in
                     Button(action: { addAmount(val) }) {
                         Text("+\(val.formatted())")
-                            .font(.subheadline).bold()
+                            .taxSuiteAmountStyle(size: 15, weight: .bold)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
                             .background(Color.blue.opacity(0.1))
@@ -816,13 +858,21 @@ struct ExpenseEditView: View {
 
         return nil
     }
+
+    @ViewBuilder
+    private var suggestionFooter: some View {
+        if let suggestionMessage {
+            Text(suggestionMessage)
+                .foregroundColor(.blue)
+        }
+    }
     
     var body: some View {
         NavigationStack {
             Form {
                 Section(
                     header: Text("項目名"),
-                    footer: suggestionMessage.map { Text($0).foregroundColor(.blue) }
+                    footer: suggestionFooter
                 ) {
                     TextField("例：タクシー代", text: $title)
                 }
@@ -945,7 +995,7 @@ struct CalendarHistoryView: View {
                         Section { NavigationLink(destination: AllHistoryView(editingExpense: $editingExpense)) { HStack { Image(systemName: "list.bullet.rectangle.portrait").foregroundColor(.blue); Text("すべての入力履歴を見る").fontWeight(.bold).foregroundColor(.blue) }.padding(.vertical, 4) } }
                         Section(header: Text("この日の経費: ¥\(Int(dailyTotal).formatted())")) {
                             if dailyExpenses.isEmpty { Text("記録はありません").foregroundColor(.gray) }
-                            else { ForEach(dailyExpenses) { expense in Button(action: { editingExpense = expense }) { HStack { VStack(alignment: .leading, spacing: 4) { Text(expense.title).font(.headline).foregroundColor(.black); Text(expense.project).font(.caption).foregroundColor(.gray) }; Spacer(); Text("¥\(Int(expense.effectiveAmount).formatted())").foregroundColor(.black) } } } }
+                            else { ForEach(dailyExpenses) { expense in Button(action: { editingExpense = expense }) { HStack { VStack(alignment: .leading, spacing: 4) { Text(expense.title).font(.headline).foregroundColor(.black); Text(expense.project).font(.caption).foregroundColor(.gray) }; Spacer(); Text("¥\(Int(expense.effectiveAmount).formatted())").taxSuiteAmountStyle(size: 16, weight: .semibold, tracking: -0.2).foregroundColor(.black) } } } }
                         }
                     }.listStyle(.insetGrouped)
                 }
@@ -976,7 +1026,7 @@ struct AllHistoryView: View {
         }.navigationTitle("すべての履歴").navigationBarTitleDisplayMode(.inline)
     }
     private func expenseRow(_ expense: ExpenseItem) -> some View {
-        Button(action: { editingExpense = expense }) { HStack { VStack(alignment: .leading, spacing: 6) { Text(expense.title).font(.headline).foregroundColor(.black); HStack { Text(expense.project).font(.caption2).foregroundColor(.gray).padding(.horizontal, 8).padding(.vertical, 4).background(Color.gray.opacity(0.1)).cornerRadius(6); Text(expense.timestamp, style: .date).font(.caption2).foregroundColor(.gray) } }; Spacer(); Text("¥\(Int(expense.effectiveAmount).formatted())").font(.headline).foregroundColor(.black) }.padding(.vertical, 4) }
+        Button(action: { editingExpense = expense }) { HStack { VStack(alignment: .leading, spacing: 6) { Text(expense.title).font(.headline).foregroundColor(.black); HStack { Text(expense.project).font(.caption2).foregroundColor(.gray).padding(.horizontal, 8).padding(.vertical, 4).background(Color.gray.opacity(0.1)).cornerRadius(6); Text(expense.timestamp, style: .date).font(.caption2).foregroundColor(.gray) } }; Spacer(); Text("¥\(Int(expense.effectiveAmount).formatted())").taxSuiteAmountStyle(size: 17, weight: .semibold, tracking: -0.2).foregroundColor(.black) }.padding(.vertical, 4) }
     }
 }
 
@@ -1000,7 +1050,7 @@ struct AnalyticsView: View {
                             .onAppear { animatedData = expenseSummary.map { CategorySum(name: $0.name, total: 0.0) }; DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { animatedData = expenseSummary } }
                             .onChange(of: expenses) { _, _ in animatedData = expenseSummary }
                         }
-                        Section(header: Text("内訳")) { ForEach(expenseSummary) { item in HStack { Text(item.name); Spacer(); Text("¥\(Int(item.total).formatted())").bold() } } }
+                        Section(header: Text("内訳")) { ForEach(expenseSummary) { item in HStack { Text(item.name); Spacer(); Text("¥\(Int(item.total).formatted())").taxSuiteAmountStyle(size: 16, weight: .bold, tracking: -0.2) } } }
                     }.listStyle(.insetGrouped)
                 }
             }.navigationTitle("分析")
@@ -1253,7 +1303,7 @@ struct RecurringExpensesSettingsView: View {
                                 }
                                 Spacer()
                                 Text("¥\(Int(recurringExpense.amount).formatted())")
-                                    .font(.headline)
+                                    .taxSuiteAmountStyle(size: 17, weight: .semibold, tracking: -0.2)
                                     .foregroundColor(.black)
                             }
                             .padding(.vertical, 4)
