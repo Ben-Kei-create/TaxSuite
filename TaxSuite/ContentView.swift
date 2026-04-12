@@ -11,14 +11,16 @@ final class ExpenseItem {
     var category: String
     var project: String
     var businessRatio: Double
+    var recurringExpenseID: String?
 
-    init(timestamp: Date = Date(), title: String, amount: Double, category: String = "未分類", project: String = "その他", businessRatio: Double = 1.0) {
+    init(timestamp: Date = Date(), title: String, amount: Double, category: String = "未分類", project: String = "その他", businessRatio: Double = 1.0, recurringExpenseID: String? = nil) {
         self.timestamp = timestamp
         self.title = title
         self.amount = amount
         self.category = category
         self.project = project
         self.businessRatio = businessRatio
+        self.recurringExpenseID = recurringExpenseID
     }
     var effectiveAmount: Double { amount * businessRatio }
 }
@@ -43,6 +45,27 @@ final class RecurringExpense {
     var title: String; var amount: Double; var project: String; var dayOfMonth: Int; var lastExecutedYear: Int; var lastExecutedMonth: Int
     init(title: String, amount: Double, project: String, dayOfMonth: Int) {
         self.title = title; self.amount = amount; self.project = project; self.dayOfMonth = dayOfMonth; self.lastExecutedYear = 0; self.lastExecutedMonth = 0
+    }
+}
+
+extension RecurringExpense {
+    var persistenceKey: String {
+        if let data = try? JSONEncoder().encode(persistentModelID),
+           let string = String(data: data, encoding: .utf8) {
+            return string
+        }
+
+        return String(describing: persistentModelID)
+    }
+
+    func scheduledDate(in referenceDate: Date, calendar: Calendar = .current) -> Date {
+        let safeDay = max(1, dayOfMonth)
+        let maxDay = calendar.range(of: .day, in: .month, for: referenceDate)?.count ?? safeDay
+
+        var components = calendar.dateComponents([.year, .month], from: referenceDate)
+        components.day = min(safeDay, maxDay)
+
+        return calendar.date(from: components) ?? referenceDate
     }
 }
 
@@ -133,6 +156,8 @@ struct GlossaryTerm: Identifiable, Hashable {
 
 // MARK: - App Root
 struct ContentView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab = 0
     @AppStorage("taxRate") private var taxRate: Double = 0.2
     
@@ -142,7 +167,62 @@ struct ContentView: View {
             CalendarHistoryView().tabItem { Label("カレンダー", systemImage: "calendar") }.tag(1)
             AnalyticsView().tabItem { Label("分析", systemImage: "chart.pie.fill") }.tag(2)
             SettingsView(taxRate: $taxRate).tabItem { Label("設定", systemImage: "gearshape.fill") }.tag(3)
-        }.accentColor(.black)
+        }
+        .accentColor(.black)
+        .task {
+            checkAndAddRecurringExpenses()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            checkAndAddRecurringExpenses()
+        }
+    }
+
+    @MainActor
+    private func checkAndAddRecurringExpenses() {
+        let recurringDescriptor = FetchDescriptor<RecurringExpense>()
+        guard let recurringExpenses = try? modelContext.fetch(recurringDescriptor), !recurringExpenses.isEmpty else { return }
+
+        let calendar = Calendar.current
+        let now = Date()
+        let currentMonth = calendar.component(.month, from: now)
+        let currentYear = calendar.component(.year, from: now)
+        var hasChanges = false
+
+        for recurring in recurringExpenses {
+            let recurringIDString = recurring.persistenceKey
+            let expenseDescriptor = FetchDescriptor<ExpenseItem>(
+                predicate: #Predicate { expense in
+                    expense.recurringExpenseID == recurringIDString
+                }
+            )
+
+            guard let createdExpenses = try? modelContext.fetch(expenseDescriptor) else { continue }
+
+            let alreadyAddedThisMonth = createdExpenses.contains { expense in
+                let expenseMonth = calendar.component(.month, from: expense.timestamp)
+                let expenseYear = calendar.component(.year, from: expense.timestamp)
+                return expenseMonth == currentMonth && expenseYear == currentYear
+            }
+
+            guard !alreadyAddedThisMonth else { continue }
+
+            let autoExpense = ExpenseItem(
+                timestamp: recurring.scheduledDate(in: now, calendar: calendar),
+                title: recurring.title + " (自動)",
+                amount: recurring.amount,
+                category: "固定費",
+                project: recurring.project,
+                businessRatio: 1.0,
+                recurringExpenseID: recurringIDString
+            )
+            modelContext.insert(autoExpense)
+            hasChanges = true
+        }
+
+        if hasChanges {
+            try? modelContext.save()
+        }
     }
 }
 
@@ -672,6 +752,23 @@ struct SettingsView: View {
                 List {
                     Section { Button(action: { showingProModal = true }) { HStack { VStack(alignment: .leading, spacing: 4) { Text("TaxSuite Pro にアップグレード").font(.headline).foregroundColor(.black); Text("領収書スキャン・無制限のデータ保存").font(.caption).foregroundColor(.gray) }; Spacer(); Image(systemName: "chevron.right").foregroundColor(.gray).font(.caption) }.padding(.vertical, 4) } }
                     Section(header: Text("計算設定")) { HStack { Text("推定税率"); Spacer(); Picker("", selection: $taxRate) { Text("10%").tag(0.1); Text("20%").tag(0.2); Text("30%").tag(0.3) }.tint(.black) } }
+                    Section(header: Text("固定費")) {
+                        NavigationLink(destination: RecurringExpensesSettingsView()) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                                    .foregroundColor(.blue)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("固定費を管理")
+                                        .font(.headline)
+                                        .foregroundColor(.black)
+                                    Text("毎月のサブスクや定額支出を自動入力")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
                     Section(header: Text("学ぶ")) {
                         NavigationLink(destination: TaxKnowledgeGlossaryView()) {
                             HStack(spacing: 12) {
@@ -692,6 +789,182 @@ struct SettingsView: View {
                 }.listStyle(.insetGrouped)
             }.navigationTitle("設定").sheet(isPresented: $showingProModal) { ProUpgradeView() }
         }
+    }
+}
+
+struct RecurringExpensesSettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \RecurringExpense.dayOfMonth) private var recurringExpenses: [RecurringExpense]
+    @State private var showingAddSheet = false
+    @State private var editingRecurringExpense: RecurringExpense?
+
+    var body: some View {
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("毎月の固定費")
+                        .font(.title3.bold())
+                    Text("一度登録しておくと、アプリがアクティブになったタイミングで当月分を自動追加します。")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section("登録済み") {
+                if recurringExpenses.isEmpty {
+                    Text("まだ固定費は登録されていません")
+                        .foregroundColor(.gray)
+                } else {
+                    ForEach(recurringExpenses) { recurringExpense in
+                        Button {
+                            editingRecurringExpense = recurringExpense
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(recurringExpense.title)
+                                        .font(.headline)
+                                        .foregroundColor(.black)
+                                    HStack(spacing: 8) {
+                                        Text(recurringExpense.project)
+                                            .font(.caption2)
+                                            .foregroundColor(.gray)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(Color.gray.opacity(0.1))
+                                            .cornerRadius(6)
+                                        Text("毎月\(recurringExpense.dayOfMonth)日")
+                                            .font(.caption2)
+                                            .foregroundColor(.blue)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(Color.blue.opacity(0.1))
+                                            .cornerRadius(6)
+                                    }
+                                }
+                                Spacer()
+                                Text("¥\(Int(recurringExpense.amount).formatted())")
+                                    .font(.headline)
+                                    .foregroundColor(.black)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                    .onDelete(perform: deleteRecurringExpenses)
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("固定費を管理")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showingAddSheet = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                }
+            }
+        }
+        .sheet(isPresented: $showingAddSheet) {
+            RecurringExpenseEditView(recurringExpense: nil)
+        }
+        .sheet(item: $editingRecurringExpense) { recurringExpense in
+            RecurringExpenseEditView(recurringExpense: recurringExpense)
+        }
+    }
+
+    private func deleteRecurringExpenses(at offsets: IndexSet) {
+        for index in offsets {
+            modelContext.delete(recurringExpenses[index])
+        }
+        try? modelContext.save()
+    }
+}
+
+struct RecurringExpenseEditView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+    var recurringExpense: RecurringExpense?
+
+    @State private var title: String = ""
+    @State private var amountText: String = ""
+    @State private var project: String = "その他"
+    @State private var dayOfMonth: Int = 1
+
+    private let projects = ["エンジニア業", "講師業", "その他"]
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("名前") {
+                    TextField("例：Adobe / サーバー代", text: $title)
+                }
+                Section("金額") {
+                    WalletChargeInputView(amountText: $amountText)
+                }
+                Section("プロジェクト") {
+                    Picker("プロジェクト", selection: $project) {
+                        ForEach(projects, id: \.self) { project in
+                            Text(project).tag(project)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                Section("引き落とし日") {
+                    Stepper(value: $dayOfMonth, in: 1...31) {
+                        Text("毎月 \(dayOfMonth) 日")
+                    }
+                    Text("存在しない日付はその月の末日に自動調整します。")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+            }
+            .navigationTitle(recurringExpense == nil ? "固定費を追加" : "固定費を編集")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("キャンセル") { dismiss() }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("保存") {
+                        saveRecurringExpense()
+                    }
+                    .fontWeight(.bold)
+                    .disabled(title.isEmpty || amountText.isEmpty)
+                }
+            }
+            .onAppear {
+                guard let recurringExpense else { return }
+                title = recurringExpense.title
+                amountText = String(Int(recurringExpense.amount))
+                project = recurringExpense.project
+                dayOfMonth = recurringExpense.dayOfMonth
+            }
+        }
+    }
+
+    private func saveRecurringExpense() {
+        let amount = Double(amountText) ?? 0
+
+        if let recurringExpense {
+            recurringExpense.title = title
+            recurringExpense.amount = amount
+            recurringExpense.project = project
+            recurringExpense.dayOfMonth = dayOfMonth
+        } else {
+            modelContext.insert(
+                RecurringExpense(
+                    title: title,
+                    amount: amount,
+                    project: project,
+                    dayOfMonth: dayOfMonth
+                )
+            )
+        }
+
+        try? modelContext.save()
+        dismiss()
     }
 }
 
