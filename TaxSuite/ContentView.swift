@@ -861,11 +861,30 @@ struct CSVExporter {
     }
 }
 
-struct GlossaryTerm: Identifiable, Hashable {
-    enum Category: String, CaseIterable, Hashable {
-        case tax = "税の基本"
-        case bookkeeping = "記録と申告"
-        case investment = "投資の基本"
+private struct GlossaryTermsPayload: Decodable {
+    let version: Int
+    let language: String
+    let terms: [GlossaryTerm]
+}
+
+private final class GlossaryBundleMarker {}
+
+struct GlossaryTerm: Identifiable, Hashable, Decodable {
+    enum Category: String, CaseIterable, Hashable, Decodable {
+        case tax
+        case bookkeeping
+        case investment
+
+        var displayName: String {
+            switch self {
+            case .tax:
+                return "税の基本"
+            case .bookkeeping:
+                return "記録と申告"
+            case .investment:
+                return "投資の基本"
+            }
+        }
     }
 
     let id: String
@@ -874,64 +893,27 @@ struct GlossaryTerm: Identifiable, Hashable {
     let summary: String
     let detail: String
 
-    static let sampleTerms: [GlossaryTerm] = [
-        GlossaryTerm(
-            id: "kakutei-shinkoku",
-            title: "確定申告",
-            category: .tax,
-            summary: "1年間の所得と税額をまとめて申告する手続きです。",
-            detail: "個人事業主や副業の収入がある人が、1月1日から12月31日までの所得を整理して税額を確定させる手続きです。TaxSuiteに記録した売上や経費は、この整理の土台になります。"
-        ),
-        GlossaryTerm(
-            id: "keihi",
-            title: "経費",
-            category: .tax,
-            summary: "仕事のために使ったお金のうち、事業に必要な支出です。",
-            detail: "売上を得るために必要だった支出は経費として扱えます。プライベートと混ざるものは、家事按分で事業分だけを計上するのが基本です。"
-        ),
-        GlossaryTerm(
-            id: "kaji-anbun",
-            title: "家事按分",
-            category: .bookkeeping,
-            summary: "仕事と私用が混ざる支出を、事業分だけに分ける考え方です。",
-            detail: "通信費や家賃の一部など、事業と私生活の両方で使う支出は、そのまま全額を経費にはできません。TaxSuiteの事業割合スライダーで、事業に使った比率だけを管理できます。"
-        ),
-        GlossaryTerm(
-            id: "aoiro-shinkoku",
-            title: "青色申告",
-            category: .bookkeeping,
-            summary: "一定の帳簿付けを行うことで特典を受けられる申告方式です。",
-            detail: "複式簿記や期限内申告などの条件を満たすと、青色申告特別控除などのメリットがあります。日々の記録を整えておくほど有利になりやすい制度です。"
-        ),
-        GlossaryTerm(
-            id: "genka-shokyaku",
-            title: "減価償却",
-            category: .bookkeeping,
-            summary: "高額な資産の購入費を、複数年に分けて経費化する考え方です。",
-            detail: "パソコンやカメラのように長く使うものは、一度に全額を経費にせず、耐用年数に応じて少しずつ費用化する場合があります。"
-        ),
-        GlossaryTerm(
-            id: "nisa",
-            title: "NISA",
-            category: .investment,
-            summary: "一定額までの投資利益が非課税になる制度です。",
-            detail: "つみたて投資枠や成長投資枠を使って、運用益や配当金にかかる税金を抑えながら投資できます。税の基本と投資を一緒に学ぶ入口として人気があります。"
-        ),
-        GlossaryTerm(
-            id: "index-toshi",
-            title: "インデックス投資",
-            category: .investment,
-            summary: "市場全体の値動きに連動することを目指す投資方法です。",
-            detail: "日経平均やS&P500のような指数に連動する商品へ分散して投資する考え方です。長期・積立・分散の基本と相性が良い手法です。"
-        ),
-        GlossaryTerm(
-            id: "haito-rimawari",
-            title: "配当利回り",
-            category: .investment,
-            summary: "株価に対して、年間配当がどれくらいかを示す目安です。",
-            detail: "配当金の多さを比較するときの参考指標ですが、高いほど安全とは限りません。値上がり益や企業の安定性と合わせて見るのが大切です。"
-        )
-    ]
+    static let sampleTerms: [GlossaryTerm] = loadTerms()
+
+    private static func loadTerms() -> [GlossaryTerm] {
+        let bundles = [Bundle.main, Bundle(for: GlossaryBundleMarker.self)]
+
+        for bundle in bundles {
+            guard let url = bundle.url(forResource: "GlossaryTerms", withExtension: "json") else {
+                continue
+            }
+
+            do {
+                let data = try Data(contentsOf: url)
+                let payload = try JSONDecoder().decode(GlossaryTermsPayload.self, from: data)
+                return payload.terms
+            } catch {
+                print("Failed to decode GlossaryTerms.json: \(error)")
+            }
+        }
+
+        return []
+    }
 }
 
 // MARK: - App Root
@@ -2073,7 +2055,7 @@ struct TaxKnowledgeGlossaryView: View {
             term.title.localizedCaseInsensitiveContains(searchText)
                 || term.summary.localizedCaseInsensitiveContains(searchText)
                 || term.detail.localizedCaseInsensitiveContains(searchText)
-                || term.category.rawValue.localizedCaseInsensitiveContains(searchText)
+                || term.category.displayName.localizedCaseInsensitiveContains(searchText)
         }
     }
 
@@ -2095,7 +2077,7 @@ struct TaxKnowledgeGlossaryView: View {
                     let terms = filteredTerms.filter { $0.category == category }
 
                     if !terms.isEmpty {
-                        Section(category.rawValue) {
+                        Section(category.displayName) {
                             ForEach(terms) { term in
                                 NavigationLink(destination: GlossaryTermDetailView(term: term)) {
                                     VStack(alignment: .leading, spacing: 6) {
@@ -2130,7 +2112,7 @@ struct GlossaryTermDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text(term.category.rawValue)
+                        Text(term.category.displayName)
                             .font(.caption.bold())
                             .foregroundColor(.blue)
                             .padding(.horizontal, 10)
