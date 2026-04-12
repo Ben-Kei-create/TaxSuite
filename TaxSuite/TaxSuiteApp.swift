@@ -4,19 +4,6 @@ import SwiftData
 import GoogleMobileAds
 #endif
 
-enum TaxSuitePersistence {
-    static let schema = Schema([
-        ExpenseItem.self,
-        RecurringExpense.self,
-        IncomeItem.self
-    ])
-
-    static func makeContainer(inMemory: Bool = false) throws -> ModelContainer {
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
-        return try ModelContainer(for: schema, configurations: [configuration])
-    }
-}
-
 @main
 struct TaxSuiteApp: App {
     init() {

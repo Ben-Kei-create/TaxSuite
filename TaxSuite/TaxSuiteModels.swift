@@ -5,14 +5,14 @@ import SwiftData
 
 @Model
 final class ExpenseItem {
-    var timestamp: Date
-    var title: String
-    var amount: Double
-    var category: String
-    var project: String
-    var businessRatio: Double
-    var note: String
-    var recurringExpenseID: String?
+    var timestamp: Date = Date()
+    var title: String = ""
+    var amount: Double = 0
+    var category: String = "未分類"
+    var project: String = "その他"
+    var businessRatio: Double = 1.0
+    var note: String = ""
+    var recurringExpenseID: String? = nil
 
     init(
         timestamp: Date = Date(),
@@ -39,10 +39,10 @@ final class ExpenseItem {
 
 @Model
 final class IncomeItem {
-    var timestamp: Date
-    var title: String
-    var amount: Double
-    var project: String
+    var timestamp: Date = Date()
+    var title: String = ""
+    var amount: Double = 0
+    var project: String = "その他"
 
     init(timestamp: Date = Date(), title: String, amount: Double, project: String = TaxSuiteWidgetStore.fallbackProjectName()) {
         self.timestamp = timestamp
@@ -54,12 +54,12 @@ final class IncomeItem {
 
 @Model
 final class RecurringExpense {
-    var title: String
-    var amount: Double
-    var project: String
-    var dayOfMonth: Int
-    var lastExecutedYear: Int
-    var lastExecutedMonth: Int
+    var title: String = ""
+    var amount: Double = 0
+    var project: String = "その他"
+    var dayOfMonth: Int = 1
+    var lastExecutedYear: Int = 0
+    var lastExecutedMonth: Int = 0
 
     init(title: String, amount: Double, project: String, dayOfMonth: Int) {
         self.title = title
