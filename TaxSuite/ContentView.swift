@@ -98,7 +98,7 @@ struct ContentView: View {
                 category: "固定費",
                 project: recurring.project,
                 businessRatio: 1.0,
-                note: "固定費の自動入力",
+                note: recurring.note.isEmpty ? "固定費の自動入力" : recurring.note,
                 recurringExpenseID: recurringIDString
             )
             modelContext.insert(autoExpense)

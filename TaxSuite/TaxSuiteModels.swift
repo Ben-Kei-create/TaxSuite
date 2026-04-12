@@ -58,14 +58,16 @@ final class RecurringExpense {
     var amount: Double = 0
     var project: String = "その他"
     var dayOfMonth: Int = 1
+    var note: String = ""
     var lastExecutedYear: Int = 0
     var lastExecutedMonth: Int = 0
 
-    init(title: String, amount: Double, project: String, dayOfMonth: Int) {
+    init(title: String, amount: Double, project: String, dayOfMonth: Int, note: String = "") {
         self.title = title
         self.amount = amount
         self.project = project
         self.dayOfMonth = dayOfMonth
+        self.note = note
         self.lastExecutedYear = 0
         self.lastExecutedMonth = 0
     }
@@ -401,6 +403,42 @@ enum ExpenseCommentTemplate {
 
     static func samples(for category: String) -> [String] {
         samples[category] ?? samples["未分類"] ?? []
+    }
+
+    // MARK: - 固定費コメントのタイトルベース提案
+
+    private static let recurringKeywordSamples: [(keywords: [String], suggestions: [String])] = [
+        (["Adobe", "Figma", "Canva", "Notion", "Slack"],
+         ["制作ツールのサブスク", "年間プランを月割り"]),
+        (["AWS", "サーバー", "ドメイン", "Heroku", "Vercel", "Cloud"],
+         ["本番環境のインフラ費用", "開発・ステージング含む"]),
+        (["ChatGPT", "Copilot", "AI", "Claude"],
+         ["AI ツールの月額利用", "業務効率化ツール"]),
+        (["Office", "Microsoft", "Google Workspace"],
+         ["業務ツール一式の利用料", "メール・ドキュメント基盤"]),
+        (["家賃", "オフィス", "コワーキング", "WeWork"],
+         ["作業スペースの月額費用", "事業按分あり"]),
+        (["電気", "ガス", "水道", "光熱"],
+         ["在宅作業分の光熱費", "事業按分で計上"]),
+        (["Wi-Fi", "回線", "通信", "携帯", "SIM"],
+         ["業務用回線の月額料金", "テザリング併用"]),
+        (["保険", "年金基金", "共済"],
+         ["事業用の保険料", "掛金の月割り分"]),
+        (["税理士", "会計", "freee", "マネーフォワード"],
+         ["記帳・申告の支援費用", "会計ソフトの利用料"])
+    ]
+
+    private static let defaultRecurringSamples = ["毎月の定額支出", "継続契約の費用"]
+
+    /// 固定費のタイトルからコメントサンプルを推定
+    static func recurringCommentSamples(for title: String) -> [String] {
+        let lower = title.lowercased()
+        for rule in recurringKeywordSamples {
+            if rule.keywords.contains(where: { lower.contains($0.lowercased()) }) {
+                return rule.suggestions
+            }
+        }
+        return defaultRecurringSamples
     }
 }
 

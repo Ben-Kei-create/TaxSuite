@@ -133,23 +133,16 @@ struct SplashScreenView: View {
                         .stroke(Color.black.opacity(0.04), lineWidth: 1)
                 )
 
-            Image(systemName: "chart.line.uptrend.xyaxis.circle.fill")
-                .font(.system(size: 44, weight: .semibold))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [
-                            Color.black,
-                            Color.black.opacity(0.72)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            Image("SplashIcon")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 78, height: 78)
+                .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
                 .overlay {
-                    splashSheen(width: 66, height: 90, offset: iconSheenOffset)
+                    splashSheen(width: 78, height: 100, offset: iconSheenOffset)
                         .mask(
-                            Image(systemName: "chart.line.uptrend.xyaxis.circle.fill")
-                                .font(.system(size: 44, weight: .semibold))
+                            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                                .frame(width: 78, height: 78)
                         )
                 }
         }

@@ -2452,9 +2452,14 @@ struct RecurringExpenseEditView: View {
     @State private var amountText: String = ""
     @State private var project: String = TaxSuiteWidgetStore.fallbackProjectName()
     @State private var dayOfMonth: Int = 1
+    @State private var note: String = ""
 
     private var projects: [String] {
         TaxSuiteWidgetStore.projectNameOptions(including: recurringExpense.map { [$0.project] } ?? [project])
+    }
+
+    private var commentSamples: [String] {
+        ExpenseCommentTemplate.recurringCommentSamples(for: title)
     }
 
     var body: some View {
@@ -2483,6 +2488,29 @@ struct RecurringExpenseEditView: View {
                             .font(.caption)
                             .foregroundColor(.gray)
                     }
+                    Section("コメント") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            TextEditor(text: $note)
+                                .frame(minHeight: 72)
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(commentSamples, id: \.self) { sample in
+                                        Button(sample) {
+                                            note = sample
+                                        }
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundColor(.black)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 8)
+                                        .background(Color.black.opacity(0.06))
+                                        .clipShape(Capsule())
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                            }
+                        }
+                    }
                 }
             }
             .navigationTitle(recurringExpense == nil ? "固定費を追加" : "固定費を編集")
@@ -2506,6 +2534,7 @@ struct RecurringExpenseEditView: View {
                 amountText = String(Int(recurringExpense.amount))
                 project = recurringExpense.project
                 dayOfMonth = recurringExpense.dayOfMonth
+                note = recurringExpense.note
             }
         }
     }
@@ -2518,13 +2547,15 @@ struct RecurringExpenseEditView: View {
             recurringExpense.amount = amount
             recurringExpense.project = project
             recurringExpense.dayOfMonth = dayOfMonth
+            recurringExpense.note = note
         } else {
             modelContext.insert(
                 RecurringExpense(
                     title: title,
                     amount: amount,
                     project: project,
-                    dayOfMonth: dayOfMonth
+                    dayOfMonth: dayOfMonth,
+                    note: note
                 )
             )
         }
