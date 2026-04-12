@@ -69,13 +69,87 @@ extension RecurringExpense {
     }
 }
 
+enum AccountingCategoryMapper {
+    private nonisolated static let standardCategories: Set<String> = [
+        "未分類",
+        "通信費",
+        "旅費交通費",
+        "会議費",
+        "消耗品費",
+        "新聞図書費",
+        "地代家賃",
+        "福利厚生費",
+        "外注費",
+        "支払手数料"
+    ]
+
+    private nonisolated static let titleRules: [(keywords: [String], category: String)] = [
+        (["aws", "gcp", "azure", "vps", "サーバー", "ドメイン", "domain", "回線", "wifi", "wi-fi", "ネット", "internet"], "通信費"),
+        (["adobe", "figma", "notion", "chatgpt", "claude", "openai"], "通信費"),
+        (["タクシー", "電車", "新幹線", "バス", "駐車", "高速", "ガソリン", "suica", "pasmo", "uber"], "旅費交通費"),
+        (["カフェ", "スタバ", "喫茶", "coffee", "打ち合わせ", "会食", "ミーティング"], "会議費"),
+        (["本", "書籍", "参考書", "雑誌", "新聞", "資料"], "新聞図書費"),
+        (["家賃", "賃料", "スタジオ", "オフィス", "コワーキング", "coworking"], "地代家賃"),
+        (["ノート", "ペン", "文具", "インク", "プリンタ", "マウス", "キーボード", "ケーブル", "アダプタ", "用紙"], "消耗品費")
+    ]
+
+    private nonisolated static let categoryAliases: [String: String] = [
+        "交通費": "旅費交通費",
+        "電車代": "旅費交通費",
+        "タクシー代": "旅費交通費",
+        "ネット代": "通信費",
+        "回線代": "通信費",
+        "サーバー代": "通信費",
+        "ドメイン代": "通信費",
+        "ソフトウェア": "通信費",
+        "サブスク": "通信費",
+        "家賃": "地代家賃",
+        "スタジオ代": "地代家賃",
+        "書籍代": "新聞図書費",
+        "資料代": "新聞図書費",
+        "固定費": "支払手数料"
+    ]
+
+    nonisolated static func category(forTitle title: String, userCategory: String) -> String {
+        let normalizedTitle = normalized(title)
+        for rule in titleRules where rule.keywords.contains(where: normalizedTitle.contains) {
+            return rule.category
+        }
+
+        let trimmedCategory = userCategory.trimmingCharacters(in: .whitespacesAndNewlines)
+        if standardCategories.contains(trimmedCategory) {
+            return trimmedCategory
+        }
+
+        let normalizedCategory = normalized(trimmedCategory)
+        if let mapped = categoryAliases.first(where: { normalized($0.key) == normalizedCategory })?.value {
+            return mapped
+        }
+
+        return trimmedCategory.isEmpty ? "未分類" : trimmedCategory
+    }
+
+    private nonisolated static func normalized(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "　", with: " ")
+            .folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: Locale(identifier: "ja_JP"))
+    }
+}
+
+extension ExpenseItem {
+    nonisolated var accountingCategory: String {
+        AccountingCategoryMapper.category(forTitle: title, userCategory: category)
+    }
+}
+
 // MARK: - Helper: 計算ロジック
 struct TaxCalculator {
-    static func calculateTax(revenue: Double, expenses: Double, taxRate: Double) -> Double {
+    nonisolated static func calculateTax(revenue: Double, expenses: Double, taxRate: Double) -> Double {
         let taxableIncome = max(0, revenue - expenses)
         return taxableIncome * taxRate
     }
-    static func calculateTakeHome(revenue: Double, expenses: Double, taxRate: Double) -> Double {
+    nonisolated static func calculateTakeHome(revenue: Double, expenses: Double, taxRate: Double) -> Double {
         let taxableIncome = max(0, revenue - expenses)
         return revenue - expenses - (taxableIncome * taxRate)
     }
@@ -248,6 +322,20 @@ extension View {
     func taxSuiteHeroAmountStyle() -> some View {
         taxSuiteAmountStyle(size: 48, weight: .bold, tracking: -1.2)
     }
+
+    func taxSuiteSectionHeadingStyle() -> some View {
+        self
+            .font(.title3)
+            .fontWeight(.heavy)
+            .foregroundColor(.primary)
+    }
+
+    func taxSuiteListHeaderStyle() -> some View {
+        self
+            .font(.subheadline)
+            .fontWeight(.semibold)
+            .foregroundColor(.secondary)
+    }
 }
 
 struct ExportFile: Identifiable {
@@ -255,23 +343,276 @@ struct ExportFile: Identifiable {
     let url: URL
 }
 
+struct SharePayload: Identifiable {
+    let id = UUID()
+    let items: [Any]
+    let subject: String?
+}
+
+enum ExportFormat: String, CaseIterable, Identifiable {
+    case standard = "標準（TaxSuite形式）"
+    case freee = "freee"
+    case moneyForward = "マネーフォワード"
+
+    nonisolated var id: String { rawValue }
+
+    nonisolated var subtitle: String {
+        switch self {
+        case .standard:
+            return "TaxSuite の全項目をそのままバックアップ形式で出力"
+        case .freee:
+            return "収入 / 支出ベースで freee に取り込みやすい形式"
+        case .moneyForward:
+            return "借方 / 貸方を分けた仕訳帳ベースの形式"
+        }
+    }
+
+    nonisolated var fileStem: String {
+        switch self {
+        case .standard:
+            return "standard"
+        case .freee:
+            return "freee"
+        case .moneyForward:
+            return "moneyforward"
+        }
+    }
+
+    var previewSummary: String {
+        switch self {
+        case .standard:
+            return "標準形式では、入力したカテゴリをそのままバックアップ用のCSVに出力します。"
+        case .freee:
+            return "freee 向けでは、TaxSuite が項目名とカテゴリから勘定科目を整えて書き出します。"
+        case .moneyForward:
+            return "マネーフォワード向けでは、仕訳帳形式に合わせて勘定科目を整理して書き出します。"
+        }
+    }
+
+    var usesAccountingCategoryMapping: Bool {
+        self != .standard
+    }
+}
+
 struct ShareSheet: UIViewControllerRepresentable {
     let activityItems: [Any]
+    var subject: String? = nil
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        let controller = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        if let subject {
+            controller.setValue(subject, forKey: "subject")
+        }
+        return controller
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-struct CSVExporter {
-    static func export(expenses: [ExpenseItem], incomes: [IncomeItem]) throws -> URL {
+enum ReportType: String, CaseIterable, Identifiable {
+    case monthly = "月次報告"
+    case taxFiling = "確定申告の共有"
+    case documentShare = "資料共有"
+
+    nonisolated var id: String { rawValue }
+
+    nonisolated var subtitle: String {
+        switch self {
+        case .monthly:
+            return "毎月の数字とCSVを、そのまま共有する定番フロー"
+        case .taxFiling:
+            return "申告期のまとめ資料として、少し丁寧な件名と本文で出力"
+        case .documentShare:
+            return "まずは資料だけ送りたいときのシンプルな下書き"
+        }
+    }
+
+    nonisolated func subject(for monthLabel: String, businessName: String) -> String {
+        let prefix = businessName.isEmpty ? "TaxSuite" : businessName
+
+        switch self {
+        case .monthly:
+            return "[\(prefix)] \(monthLabel)分 月次資料のご共有"
+        case .taxFiling:
+            return "[\(prefix)] \(monthLabel)分 申告資料のご共有"
+        case .documentShare:
+            return "[\(prefix)] \(monthLabel)分 資料共有"
+        }
+    }
+
+    nonisolated func introLine(monthLabel: String) -> String {
+        switch self {
+        case .monthly:
+            return "\(monthLabel)分の月次資料をお送りします。"
+        case .taxFiling:
+            return "\(monthLabel)分の申告関連資料を共有いたします。"
+        case .documentShare:
+            return "\(monthLabel)分の資料を共有いたします。"
+        }
+    }
+}
+
+struct ReportDraftPackage {
+    let subject: String
+    let body: String
+    let attachments: [URL]
+
+    var attachmentNames: [String] {
+        attachments.map(\.lastPathComponent)
+    }
+}
+
+struct ReportDraftPreview {
+    let subject: String
+    let body: String
+    let attachmentName: String
+    let revenueTotal: Double
+    let expenseTotal: Double
+    let takeHomeTotal: Double
+    let incomeCount: Int
+    let expenseCount: Int
+}
+
+enum ReportDraftBuilder {
+    nonisolated static func preview(
+        expenses: [ExpenseItem],
+        incomes: [IncomeItem],
+        format: ExportFormat,
+        reportType: ReportType,
+        advisorName: String,
+        senderName: String,
+        businessName: String,
+        targetMonth: Date,
+        note: String,
+        taxRate: Double
+    ) -> ReportDraftPreview {
+        let monthExpenses = filtered(expenses: expenses, in: targetMonth)
+        let monthIncomes = filtered(incomes: incomes, in: targetMonth)
+        let monthLabel = monthString(for: targetMonth)
+        let subject = reportType.subject(for: monthLabel, businessName: businessName)
+        let attachmentName = attachmentFileName(for: format, targetMonth: targetMonth)
+        let revenueTotal = monthIncomes.reduce(0) { $0 + $1.amount }
+        let expenseTotal = monthExpenses.reduce(0) { $0 + $1.effectiveAmount }
+        let takeHome = TaxCalculator.calculateTakeHome(revenue: revenueTotal, expenses: expenseTotal, taxRate: taxRate)
+        let advisorLine = advisorName.isEmpty ? "ご担当者さま" : "\(advisorName)さま"
+        let senderLine = senderName.isEmpty ? "TaxSuite ユーザー" : senderName
+        let businessLine = businessName.isEmpty ? "" : "\(businessName)\n"
+        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        let noteSection = trimmedNote.isEmpty ? "" : "\n補足:\n\(trimmedNote)\n"
+
+        let body = """
+        \(advisorLine)
+
+        いつもお世話になっております。
+        \(businessLine)\(senderLine)です。
+
+        \(reportType.introLine(monthLabel: monthLabel))
+
+        対象月: \(monthLabel)
+        売上合計: ¥\(Int(revenueTotal).formatted())
+        経費合計: ¥\(Int(expenseTotal).formatted())
+        推定手取り: ¥\(Int(takeHome).formatted())
+
+        添付資料:
+        ・\(attachmentName)
+        \(noteSection)
+        ご確認のほど、よろしくお願いいたします。
+        """
+
+        return ReportDraftPreview(
+            subject: subject,
+            body: body,
+            attachmentName: attachmentName,
+            revenueTotal: revenueTotal,
+            expenseTotal: expenseTotal,
+            takeHomeTotal: takeHome,
+            incomeCount: monthIncomes.count,
+            expenseCount: monthExpenses.count
+        )
+    }
+
+    nonisolated static func makeDraft(
+        expenses: [ExpenseItem],
+        incomes: [IncomeItem],
+        format: ExportFormat,
+        reportType: ReportType,
+        advisorName: String,
+        senderName: String,
+        businessName: String,
+        targetMonth: Date,
+        note: String,
+        taxRate: Double
+    ) throws -> ReportDraftPackage {
+        let preview = preview(
+            expenses: expenses,
+            incomes: incomes,
+            format: format,
+            reportType: reportType,
+            advisorName: advisorName,
+            senderName: senderName,
+            businessName: businessName,
+            targetMonth: targetMonth,
+            note: note,
+            taxRate: taxRate
+        )
+        let monthExpenses = filtered(expenses: expenses, in: targetMonth)
+        let monthIncomes = filtered(incomes: incomes, in: targetMonth)
+        let fileName = attachmentFileName(for: format, targetMonth: targetMonth)
+        let attachment = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        let csv = CSVExporter.generateCSV(expenses: monthExpenses, incomes: monthIncomes, format: format)
+        try csv.write(to: attachment, atomically: true, encoding: .utf8)
+        return ReportDraftPackage(subject: preview.subject, body: preview.body, attachments: [attachment])
+    }
+
+    private nonisolated static func filtered(expenses: [ExpenseItem], in month: Date) -> [ExpenseItem] {
+        let calendar = Calendar.current
+        return expenses.filter { calendar.isDate($0.timestamp, equalTo: month, toGranularity: .month) }
+    }
+
+    private nonisolated static func filtered(incomes: [IncomeItem], in month: Date) -> [IncomeItem] {
+        let calendar = Calendar.current
+        return incomes.filter { calendar.isDate($0.timestamp, equalTo: month, toGranularity: .month) }
+    }
+
+    private nonisolated static func monthString(for date: Date) -> String {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.dateFormat = "yyyy年M月"
+        return formatter.string(from: date)
+    }
 
+    private nonisolated static func attachmentFileName(for format: ExportFormat, targetMonth: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM"
+        return "TaxSuite-\(format.fileStem)-\(formatter.string(from: targetMonth)).csv"
+    }
+}
+
+struct CSVExporter {
+    nonisolated static func export(expenses: [ExpenseItem], incomes: [IncomeItem], format: ExportFormat) throws -> URL {
+        let csv = generateCSV(expenses: expenses, incomes: incomes, format: format)
+        let fileName = "TaxSuite-\(format.fileStem)-\(timestampString(for: Date())).csv"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+
+        try csv.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    nonisolated static func generateCSV(expenses: [ExpenseItem], incomes: [IncomeItem], format: ExportFormat) -> String {
+        switch format {
+        case .standard:
+            return generateStandardCSV(expenses: expenses, incomes: incomes)
+        case .freee:
+            return generateFreeeCSV(expenses: expenses, incomes: incomes)
+        case .moneyForward:
+            return generateMoneyForwardCSV(expenses: expenses, incomes: incomes)
+        }
+    }
+
+    private nonisolated static func generateStandardCSV(expenses: [ExpenseItem], incomes: [IncomeItem]) -> String {
         var lines = [
             [
                 "record_type",
@@ -289,7 +630,7 @@ struct CSVExporter {
         for expense in expenses.sorted(by: { $0.timestamp < $1.timestamp }) {
             lines.append([
                 "expense",
-                formatter.string(from: expense.timestamp),
+                dateString(from: expense.timestamp),
                 csvField(expense.title),
                 csvField(String(Int(expense.amount))),
                 csvField(expense.category),
@@ -303,7 +644,7 @@ struct CSVExporter {
         for income in incomes.sorted(by: { $0.timestamp < $1.timestamp }) {
             lines.append([
                 "income",
-                formatter.string(from: income.timestamp),
+                dateString(from: income.timestamp),
                 csvField(income.title),
                 csvField(String(Int(income.amount))),
                 csvField(""),
@@ -314,20 +655,96 @@ struct CSVExporter {
             ].joined(separator: ","))
         }
 
-        let csv = lines.joined(separator: "\n")
-        let fileName = "TaxSuite-\(timestampString(for: Date())).csv"
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-
-        try csv.write(to: url, atomically: true, encoding: .utf8)
-        return url
+        return lines.joined(separator: "\n")
     }
 
-    private static func csvField(_ value: String) -> String {
+    private nonisolated static func generateFreeeCSV(expenses: [ExpenseItem], incomes: [IncomeItem]) -> String {
+        var rows: [(Date, String)] = []
+
+        for expense in expenses {
+            let line = [
+                "支出",
+                dateString(from: expense.timestamp),
+                csvField(expense.accountingCategory),
+                csvField(String(Int(expense.effectiveAmount))),
+                csvField(expense.project),
+                csvField(expense.title)
+            ].joined(separator: ",")
+            rows.append((expense.timestamp, line))
+        }
+
+        for income in incomes {
+            let line = [
+                "収入",
+                dateString(from: income.timestamp),
+                "売上高",
+                csvField(String(Int(income.amount))),
+                csvField(income.project),
+                csvField(income.title)
+            ].joined(separator: ",")
+            rows.append((income.timestamp, line))
+        }
+
+        let lines = ["収支区分,発生日,勘定科目,金額,品目,備考"] + rows.sorted(by: sortRows).map(\.1)
+        return lines.joined(separator: "\n")
+    }
+
+    private nonisolated static func generateMoneyForwardCSV(expenses: [ExpenseItem], incomes: [IncomeItem]) -> String {
+        var rows: [(Date, String)] = []
+
+        for expense in expenses {
+            let amount = String(Int(expense.effectiveAmount))
+            let memo = "\(expense.title) [\(expense.project)]"
+            let line = [
+                dateString(from: expense.timestamp),
+                csvField(expense.accountingCategory),
+                csvField(amount),
+                "事業主借",
+                csvField(amount),
+                csvField(memo)
+            ].joined(separator: ",")
+            rows.append((expense.timestamp, line))
+        }
+
+        for income in incomes {
+            let amount = String(Int(income.amount))
+            let memo = "\(income.title) [\(income.project)]"
+            let line = [
+                dateString(from: income.timestamp),
+                "事業主貸",
+                csvField(amount),
+                "売上高",
+                csvField(amount),
+                csvField(memo)
+            ].joined(separator: ",")
+            rows.append((income.timestamp, line))
+        }
+
+        let lines = ["日付,借方勘定科目,借方金額,貸方勘定科目,貸方金額,摘要"] + rows.sorted(by: sortRows).map(\.1)
+        return lines.joined(separator: "\n")
+    }
+
+    private nonisolated static func dateString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
+    private nonisolated static func csvField(_ value: String) -> String {
         let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
         return "\"\(escaped)\""
     }
 
-    private static func timestampString(for date: Date) -> String {
+    private nonisolated static func sortRows(lhs: (Date, String), rhs: (Date, String)) -> Bool {
+        if lhs.0 == rhs.0 {
+            return lhs.1 < rhs.1
+        }
+        return lhs.0 < rhs.0
+    }
+
+    private nonisolated static func timestampString(for date: Date) -> String {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -426,10 +843,12 @@ struct ContentView: View {
         .accentColor(.black)
         .task {
             checkAndAddRecurringExpenses()
+            refreshWidgetSnapshot()
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
             checkAndAddRecurringExpenses()
+            refreshWidgetSnapshot()
         }
     }
 
@@ -479,6 +898,23 @@ struct ContentView: View {
             try? modelContext.save()
         }
     }
+
+    @MainActor
+    private func refreshWidgetSnapshot() {
+        let expenseDescriptor = FetchDescriptor<ExpenseItem>()
+        let incomeDescriptor = FetchDescriptor<IncomeItem>()
+        guard
+            let expenses = try? modelContext.fetch(expenseDescriptor),
+            let incomes = try? modelContext.fetch(incomeDescriptor)
+        else { return }
+
+        let snapshot = TaxSuiteWidgetStore.makeSnapshot(
+            expenses: expenses,
+            incomes: incomes,
+            taxRate: taxRate
+        )
+        TaxSuiteWidgetStore.save(snapshot: snapshot)
+    }
 }
 
 // MARK: - Tab 1: DashboardView
@@ -513,6 +949,26 @@ struct DashboardView: View {
     
     var estimatedTax: Double { TaxCalculator.calculateTax(revenue: currentMonthRevenue, expenses: currentMonthExpense, taxRate: taxRate) }
     var takeHome: Double { TaxCalculator.calculateTakeHome(revenue: currentMonthRevenue, expenses: currentMonthExpense, taxRate: taxRate) }
+
+    var widgetSnapshotFingerprint: String {
+        let latestExpense = allExpenses.map(\.timestamp).max()?.timeIntervalSince1970 ?? 0
+        let latestIncome = allIncomes.map(\.timestamp).max()?.timeIntervalSince1970 ?? 0
+        let todayTotal = todayExpenses.reduce(0) { $0 + $1.effectiveAmount }
+
+        return [
+            String(format: "%.2f", currentMonthRevenue),
+            String(format: "%.2f", currentMonthExpense),
+            String(format: "%.2f", estimatedTax),
+            String(format: "%.2f", takeHome),
+            String(format: "%.2f", todayTotal),
+            String(todayExpenses.count),
+            String(allExpenses.count),
+            String(allIncomes.count),
+            String(latestExpense),
+            String(latestIncome),
+            String(format: "%.2f", taxRate)
+        ].joined(separator: "|")
+    }
     
     static var todayPredicate: Predicate<ExpenseItem> {
         let calendar = Calendar.current
@@ -527,13 +983,13 @@ struct DashboardView: View {
                 Color(white: 0.97).ignoresSafeArea()
                 
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: 28) {
+                    VStack(spacing: 32) {
                         mainMetricCard
                         adBannerSection
                         quickAddSection
                         todayExpensesSection
-                        Spacer().frame(height: 80)
-                    }.padding(.vertical, 20)
+                        Spacer().frame(height: 96)
+                    }.padding(.vertical, 24)
                 }
                 
                 Menu {
@@ -555,6 +1011,12 @@ struct DashboardView: View {
             .sheet(isPresented: $showingExpenseSheet) { ExpenseEditView(expense: nil, initialTitle: draftTitle, initialAmount: draftAmount) }
             .sheet(isPresented: $showingIncomeSheet) { IncomeEditView() }
             .sheet(item: $editingExpense) { expense in ExpenseEditView(expense: expense) }
+            .task {
+                syncWidgetSnapshot()
+            }
+            .onChange(of: widgetSnapshotFingerprint) { _, _ in
+                syncWidgetSnapshot()
+            }
         }
     }
     
@@ -613,7 +1075,16 @@ struct DashboardView: View {
     
     private var quickAddSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("クイック入力 (長押しで詳細)").font(.caption).foregroundColor(.gray).padding(.horizontal, 24)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("クイック入力")
+                    .taxSuiteSectionHeadingStyle()
+                Text("長押しで詳細")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 4)
+
             HStack(spacing: 12) {
                 QuickAddButton(icon: "🚃", title: "電車", amount: 180, onTap: { addExpense("電車", 180, "交通費") }, onLongPress: { openDraftSheet(title: "電車", amount: 180) })
                 QuickAddButton(icon: "☕️", title: "カフェ", amount: 600, onTap: { addExpense("カフェ", 600, "会議費") }, onLongPress: { openDraftSheet(title: "カフェ", amount: 600) })
@@ -625,7 +1096,10 @@ struct DashboardView: View {
     
     private var todayExpensesSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("本日の経費").font(.headline).padding(.horizontal, 24)
+            Text("本日の経費")
+                .taxSuiteSectionHeadingStyle()
+                .padding(.horizontal, 24)
+                .padding(.bottom, 4)
             if todayExpenses.isEmpty { Text("本日の記録はありません").font(.subheadline).foregroundColor(.gray).frame(maxWidth: .infinity, alignment: .center).padding(.top, 20)
             } else {
                 VStack(spacing: 10) {
@@ -664,6 +1138,15 @@ struct DashboardView: View {
             modelContext.insert(ExpenseItem(title: title, amount: amount, category: category, project: "その他", businessRatio: 1.0))
             let generator = UIImpactFeedbackGenerator(style: .medium); generator.impactOccurred()
         }
+    }
+
+    private func syncWidgetSnapshot() {
+        let snapshot = TaxSuiteWidgetStore.makeSnapshot(
+            expenses: allExpenses,
+            incomes: allIncomes,
+            taxRate: taxRate
+        )
+        TaxSuiteWidgetStore.save(snapshot: snapshot)
     }
 }
 
@@ -985,6 +1468,18 @@ struct CalendarHistoryView: View {
     @State private var selectedDate = Date(); @State private var editingExpense: ExpenseItem?
     var dailyExpenses: [ExpenseItem] { expenses.filter { Calendar.current.isDate($0.timestamp, inSameDayAs: selectedDate) } }
     var dailyTotal: Double { dailyExpenses.reduce(0) { $0 + $1.effectiveAmount } }
+
+    private var dailyExpenseHeader: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("この日の経費")
+                .taxSuiteListHeaderStyle()
+            Text("¥\(Int(dailyTotal).formatted())")
+                .taxSuiteAmountStyle(size: 18, weight: .bold, tracking: -0.2)
+                .foregroundColor(.primary)
+        }
+        .padding(.vertical, 4)
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -993,7 +1488,7 @@ struct CalendarHistoryView: View {
                     DatePicker("日付", selection: $selectedDate, displayedComponents: [.date]).datePickerStyle(.graphical).tint(.black).padding().background(Color.white).cornerRadius(15).padding()
                     List {
                         Section { NavigationLink(destination: AllHistoryView(editingExpense: $editingExpense)) { HStack { Image(systemName: "list.bullet.rectangle.portrait").foregroundColor(.blue); Text("すべての入力履歴を見る").fontWeight(.bold).foregroundColor(.blue) }.padding(.vertical, 4) } }
-                        Section(header: Text("この日の経費: ¥\(Int(dailyTotal).formatted())")) {
+                        Section(header: dailyExpenseHeader) {
                             if dailyExpenses.isEmpty { Text("記録はありません").foregroundColor(.gray) }
                             else { ForEach(dailyExpenses) { expense in Button(action: { editingExpense = expense }) { HStack { VStack(alignment: .leading, spacing: 4) { Text(expense.title).font(.headline).foregroundColor(.black); Text(expense.project).font(.caption).foregroundColor(.gray) }; Spacer(); Text("¥\(Int(expense.effectiveAmount).formatted())").taxSuiteAmountStyle(size: 16, weight: .semibold, tracking: -0.2).foregroundColor(.black) } } } }
                         }
@@ -1019,7 +1514,7 @@ struct AllHistoryView: View {
                 Picker("表示モード", selection: $viewMode) { Text("月別まとめ").tag(0); Text("すべて").tag(1) }.pickerStyle(.segmented).padding()
                 List {
                     if allExpenses.isEmpty { Text("まだ記録がありません").foregroundColor(.gray) }
-                    else if viewMode == 0 { ForEach(groupedByMonth, id: \.0) { monthString, itemsInMonth in Section(header: Text(monthString).font(.headline)) { ForEach(itemsInMonth) { expense in expenseRow(expense) } } } }
+                    else if viewMode == 0 { ForEach(groupedByMonth, id: \.0) { monthString, itemsInMonth in Section(header: Text(monthString).taxSuiteListHeaderStyle()) { ForEach(itemsInMonth) { expense in expenseRow(expense) } } } }
                     else { ForEach(allExpenses) { expense in expenseRow(expense) } }
                 }.listStyle(.insetGrouped)
             }
@@ -1050,7 +1545,7 @@ struct AnalyticsView: View {
                             .onAppear { animatedData = expenseSummary.map { CategorySum(name: $0.name, total: 0.0) }; DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { animatedData = expenseSummary } }
                             .onChange(of: expenses) { _, _ in animatedData = expenseSummary }
                         }
-                        Section(header: Text("内訳")) { ForEach(expenseSummary) { item in HStack { Text(item.name); Spacer(); Text("¥\(Int(item.total).formatted())").taxSuiteAmountStyle(size: 16, weight: .bold, tracking: -0.2) } } }
+                        Section(header: Text("内訳").taxSuiteListHeaderStyle()) { ForEach(expenseSummary) { item in HStack { Text(item.name); Spacer(); Text("¥\(Int(item.total).formatted())").taxSuiteAmountStyle(size: 16, weight: .bold, tracking: -0.2) } } }
                     }.listStyle(.insetGrouped)
                 }
             }.navigationTitle("分析")
@@ -1154,6 +1649,327 @@ struct GlossaryTermDetailView: View {
     }
 }
 
+struct CSVPreviewView: View {
+    @Query(sort: \ExpenseItem.timestamp, order: .reverse) private var expenses: [ExpenseItem]
+
+    let format: ExportFormat
+
+    private var previewExpenses: [ExpenseItem] {
+        Array(expenses.prefix(50))
+    }
+
+    var body: some View {
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("書き出し前の確認")
+                        .font(.title3.bold())
+                    Text(format.previewSummary)
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+
+                    if format.usesAccountingCategoryMapping {
+                        Text("売上は会計ソフト向けに `売上高` として出力されます。経費は下の一覧どおりに整理されます。")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section(header: Text(sectionTitle).taxSuiteListHeaderStyle()) {
+                if previewExpenses.isEmpty {
+                    Text("記録がありません")
+                        .foregroundColor(.gray)
+                } else {
+                    ForEach(previewExpenses) { expense in
+                        previewRow(for: expense)
+                    }
+
+                    if expenses.count > previewExpenses.count {
+                        Text("最新 \(previewExpenses.count) 件を表示中")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("書き出しプレビュー")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var sectionTitle: String {
+        format.usesAccountingCategoryMapping ? "変換結果" : "出力されるカテゴリ"
+    }
+
+    @ViewBuilder
+    private func previewRow(for expense: ExpenseItem) -> some View {
+        let originalCategory = displayedCategory(for: expense.category)
+        let exportedCategory = format.usesAccountingCategoryMapping ? expense.accountingCategory : originalCategory
+        let didMap = originalCategory != exportedCategory
+
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(expense.title)
+                    .font(.body)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.black)
+
+                HStack(spacing: 6) {
+                    Text(expense.timestamp, format: .dateTime.month().day())
+                    Text("・")
+                    Text(expense.project)
+                }
+                .font(.caption)
+                .foregroundColor(.gray)
+
+                HStack(spacing: 8) {
+                    categoryBadge(text: originalCategory, tint: .gray, backgroundOpacity: 0.12)
+
+                    if format.usesAccountingCategoryMapping {
+                        Image(systemName: "arrow.right")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundColor(.secondary)
+                        categoryBadge(
+                            text: exportedCategory,
+                            tint: didMap ? .blue : .secondary,
+                            backgroundOpacity: didMap ? 0.12 : 0.1
+                        )
+                    }
+                }
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 6) {
+                Text("¥\(Int(expense.effectiveAmount).formatted())")
+                    .taxSuiteAmountStyle(size: 17, weight: .bold, tracking: -0.2)
+
+                Text(statusText(didMap: didMap))
+                    .font(.caption2)
+                    .foregroundColor(didMap ? .blue : .secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func displayedCategory(for category: String) -> String {
+        let trimmed = category.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "未分類" : trimmed
+    }
+
+    private func statusText(didMap: Bool) -> String {
+        if format.usesAccountingCategoryMapping {
+            return didMap ? "変換あり" : "そのまま出力"
+        }
+
+        return "標準形式"
+    }
+
+    @ViewBuilder
+    private func categoryBadge(text: String, tint: Color, backgroundOpacity: Double) -> some View {
+        Text(text)
+            .font(.caption.bold())
+            .foregroundColor(tint)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(tint.opacity(backgroundOpacity))
+            .clipShape(Capsule())
+    }
+}
+
+struct ReportDraftComposerView: View {
+    @Query(sort: \ExpenseItem.timestamp, order: .reverse) private var expenses: [ExpenseItem]
+    @Query(sort: \IncomeItem.timestamp, order: .reverse) private var incomes: [IncomeItem]
+    @AppStorage("taxAdvisorName") private var advisorName: String = ""
+    @AppStorage("taxSuiteSenderName") private var senderName: String = ""
+    @AppStorage("taxSuiteBusinessName") private var businessName: String = ""
+
+    let taxRate: Double
+
+    @State private var reportType: ReportType = .monthly
+    @State private var selectedFormat: ExportFormat
+    @State private var targetMonth: Date = Date()
+    @State private var note: String = ""
+    @State private var sharePayload: SharePayload?
+    @State private var exportErrorMessage: String?
+
+    init(defaultFormat: ExportFormat, taxRate: Double) {
+        self.taxRate = taxRate
+        _selectedFormat = State(initialValue: defaultFormat)
+    }
+
+    private var preview: ReportDraftPreview {
+        ReportDraftBuilder.preview(
+            expenses: expenses,
+            incomes: incomes,
+            format: selectedFormat,
+            reportType: reportType,
+            advisorName: advisorName,
+            senderName: senderName,
+            businessName: businessName,
+            targetMonth: targetMonth,
+            note: note,
+            taxRate: taxRate
+        )
+    }
+
+    var body: some View {
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("報告をそのまま外に出す")
+                        .font(.title3.bold())
+                    Text("TaxSuite の数字を、件名・本文・CSV添付まで整えた状態で共有シートへ渡します。")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section(header: Text("相手と差出人").taxSuiteListHeaderStyle()) {
+                TextField("宛名（例: 山田先生）", text: $advisorName)
+                TextField("差出人名", text: $senderName)
+                TextField("屋号 / 事業名（任意）", text: $businessName)
+            }
+
+            Section(header: Text("報告内容").taxSuiteListHeaderStyle()) {
+                Picker("報告タイプ", selection: $reportType) {
+                    ForEach(ReportType.allCases) { type in
+                        Text(type.rawValue).tag(type)
+                    }
+                }
+
+                Picker("CSV形式", selection: $selectedFormat) {
+                    ForEach(ExportFormat.allCases) { format in
+                        Text(format.rawValue).tag(format)
+                    }
+                }
+
+                DatePicker("対象月", selection: $targetMonth, displayedComponents: [.date])
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("補足メモ")
+                        .font(.subheadline.weight(.semibold))
+                    TextEditor(text: $note)
+                        .frame(minHeight: 88)
+                }
+
+                Text(reportType.subtitle)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Section(header: Text("概要").taxSuiteListHeaderStyle()) {
+                HStack {
+                    metricColumn(title: "売上", value: preview.revenueTotal)
+                    Spacer()
+                    metricColumn(title: "経費", value: preview.expenseTotal)
+                    Spacer()
+                    metricColumn(title: "推定手取り", value: preview.takeHomeTotal)
+                }
+                .padding(.vertical, 4)
+
+                HStack {
+                    Text("件数")
+                    Spacer()
+                    Text("売上 \(preview.incomeCount)件 / 経費 \(preview.expenseCount)件")
+                        .foregroundColor(.secondary)
+                }
+
+                HStack {
+                    Text("添付ファイル")
+                    Spacer()
+                    Text(preview.attachmentName)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.trailing)
+                }
+            }
+
+            Section(header: Text("本文プレビュー").taxSuiteListHeaderStyle()) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(preview.subject)
+                        .font(.headline)
+                        .foregroundColor(.black)
+
+                    Text(preview.body)
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
+                        .lineSpacing(5)
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section {
+                Button(action: shareDraft) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "paperplane.fill")
+                            .foregroundColor(.blue)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("共有シートで下書きを開く")
+                                .font(.headline)
+                                .foregroundColor(.black)
+                            Text("Mail や Gmail に件名・本文・CSV を渡します")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("報告下書き")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $sharePayload) { payload in
+            ShareSheet(activityItems: payload.items, subject: payload.subject)
+        }
+        .alert("下書きを作成できませんでした", isPresented: Binding(
+            get: { exportErrorMessage != nil },
+            set: { if !$0 { exportErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(exportErrorMessage ?? "不明なエラーが発生しました。")
+        }
+    }
+
+    private func metricColumn(title: String, value: Double) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text("¥\(Int(value).formatted())")
+                .taxSuiteAmountStyle(size: 18, weight: .bold, tracking: -0.2)
+        }
+    }
+
+    private func shareDraft() {
+        do {
+            let draft = try ReportDraftBuilder.makeDraft(
+                expenses: expenses,
+                incomes: incomes,
+                format: selectedFormat,
+                reportType: reportType,
+                advisorName: advisorName,
+                senderName: senderName,
+                businessName: businessName,
+                targetMonth: targetMonth,
+                note: note,
+                taxRate: taxRate
+            )
+            sharePayload = SharePayload(
+                items: [draft.body as Any] + draft.attachments.map { $0 as Any },
+                subject: draft.subject
+            )
+        } catch {
+            exportErrorMessage = error.localizedDescription
+        }
+    }
+}
+
 struct SettingsView: View {
     @Query(sort: \ExpenseItem.timestamp, order: .reverse) private var expenses: [ExpenseItem]
     @Query(sort: \IncomeItem.timestamp, order: .reverse) private var incomes: [IncomeItem]
@@ -1161,6 +1977,7 @@ struct SettingsView: View {
     @State private var showingProModal = false
     @State private var exportFile: ExportFile?
     @State private var exportErrorMessage: String?
+    @State private var selectedExportFormat: ExportFormat = .standard
     var body: some View {
         NavigationStack {
             ZStack {
@@ -1186,6 +2003,36 @@ struct SettingsView: View {
                         }
                     }
                     Section(header: Text("データ")) {
+                        LabeledContent("書き出し形式") {
+                            Picker("書き出し形式", selection: $selectedExportFormat) {
+                                ForEach(ExportFormat.allCases) { format in
+                                    Text(format.rawValue).tag(format)
+                                }
+                            }
+                            .labelsHidden()
+                            .tint(.black)
+                        }
+
+                        NavigationLink(destination: CSVPreviewView(format: selectedExportFormat)) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "doc.text.magnifyingglass")
+                                    .foregroundColor(.blue)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("書き出し結果をプレビュー")
+                                        .font(.headline)
+                                        .foregroundColor(.black)
+                                    Text(formatPreviewSubtitle)
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                                    .font(.caption)
+                            }
+                            .padding(.vertical, 4)
+                        }
+
                         Button(action: exportCSV) {
                             HStack(spacing: 12) {
                                 Image(systemName: "square.and.arrow.up.fill")
@@ -1194,7 +2041,28 @@ struct SettingsView: View {
                                     Text("CSVを書き出す")
                                         .font(.headline)
                                         .foregroundColor(.black)
-                                    Text("売上と経費を会計ソフト向けにシェア")
+                                    Text(selectedExportFormat.subtitle)
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                                    .font(.caption)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                    Section(header: Text("連携")) {
+                        NavigationLink(destination: ReportDraftComposerView(defaultFormat: selectedExportFormat, taxRate: taxRate)) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "paperplane.circle.fill")
+                                    .foregroundColor(.indigo)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("報告下書きを作成")
+                                        .font(.headline)
+                                        .foregroundColor(.black)
+                                    Text("税理士や自分向けに件名・本文・CSV をまとめて準備")
                                         .font(.caption)
                                         .foregroundColor(.gray)
                                 }
@@ -1243,11 +2111,17 @@ struct SettingsView: View {
 
     private func exportCSV() {
         do {
-            let url = try CSVExporter.export(expenses: expenses, incomes: incomes)
+            let url = try CSVExporter.export(expenses: expenses, incomes: incomes, format: selectedExportFormat)
             exportFile = ExportFile(url: url)
         } catch {
             exportErrorMessage = error.localizedDescription
         }
+    }
+
+    private var formatPreviewSubtitle: String {
+        selectedExportFormat.usesAccountingCategoryMapping
+            ? "勘定科目への変換結果を先に確認"
+            : "現在の入力内容がどう出力されるか確認"
     }
 }
 

@@ -50,6 +50,15 @@ struct AddExpenseIntent: AppIntent {
         context.insert(expense)
         try context.save()
 
+        let allExpenses = try context.fetch(FetchDescriptor<ExpenseItem>())
+        let allIncomes = try context.fetch(FetchDescriptor<IncomeItem>())
+        let snapshot = TaxSuiteWidgetStore.makeSnapshot(
+            expenses: allExpenses,
+            incomes: allIncomes,
+            taxRate: TaxSuiteWidgetStore.currentTaxRate()
+        )
+        TaxSuiteWidgetStore.save(snapshot: snapshot)
+
         let msg = "¥\(Int(amount).formatted())の\(expenseTitle)を\(project.rawValue)に記録しました"
         return .result(dialog: IntentDialog(stringLiteral: msg))
     }

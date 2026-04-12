@@ -7,11 +7,45 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		289A41B2BBBB93C6CD5E4BAA /* TaxSuiteWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A553D8E1749CDE193DB2662D /* TaxSuiteWidget.appex */; };
+		40C83A7047BB3F58E5923814 /* TaxSuiteWidgetSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6AAF4717E08BC49A9267C77 /* TaxSuiteWidgetSupport.swift */; };
+		47CD190857736EAE6AB3A8BF /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 35B664418527FB9786991321 /* Foundation.framework */; };
+		95754B1EBC877DB921CD2897 /* TaxSuiteWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 489B40F5D25A1B500246E0D3 /* TaxSuiteWidget.swift */; };
 		A50A3CEE2F8B2A0500618AFA /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = A50A3CED2F8B2A0500618AFA /* GoogleMobileAds */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		469FA8D38B84D792D8A4E978 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A50A3CC82F895EB500618AFA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5A66AE9FC6268CCFE9B0465D;
+			remoteInfo = TaxSuiteWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		128B602DE4C4580B0EFDBC81 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				289A41B2BBBB93C6CD5E4BAA /* TaxSuiteWidget.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		1908694D9FC574151FB7D8CC /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		35B664418527FB9786991321 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		489B40F5D25A1B500246E0D3 /* TaxSuiteWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaxSuiteWidget.swift; sourceTree = "<group>"; };
 		A50A3CD02F895EB500618AFA /* TaxSuite.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TaxSuite.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A553D8E1749CDE193DB2662D /* TaxSuiteWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TaxSuiteWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D15C820DB4E60A69A7F4AC8E /* TaxSuiteWidget.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = TaxSuiteWidget.entitlements; sourceTree = "<group>"; };
+		D6AAF4717E08BC49A9267C77 /* TaxSuiteWidgetSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TaxSuiteWidgetSupport.swift; path = ../TaxSuite/TaxSuiteWidgetSupport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -36,6 +70,14 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		7FF95A87C7FAA809F2A15CE2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				47CD190857736EAE6AB3A8BF /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A50A3CCD2F895EB500618AFA /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -47,11 +89,41 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		35F2070C24A13C764BAE0582 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				95C637466D2C8E83A079638F /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		459D87516080789EE6FE91C3 /* TaxSuiteWidget */ = {
+			isa = PBXGroup;
+			children = (
+				489B40F5D25A1B500246E0D3 /* TaxSuiteWidget.swift */,
+				1908694D9FC574151FB7D8CC /* Info.plist */,
+				D15C820DB4E60A69A7F4AC8E /* TaxSuiteWidget.entitlements */,
+				D6AAF4717E08BC49A9267C77 /* TaxSuiteWidgetSupport.swift */,
+			);
+			name = TaxSuiteWidget;
+			path = TaxSuiteWidget;
+			sourceTree = "<group>";
+		};
+		95C637466D2C8E83A079638F /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				35B664418527FB9786991321 /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
 		A50A3CC72F895EB500618AFA = {
 			isa = PBXGroup;
 			children = (
 				A50A3CD22F895EB500618AFA /* TaxSuite */,
 				A50A3CD12F895EB500618AFA /* Products */,
+				35F2070C24A13C764BAE0582 /* Frameworks */,
+				459D87516080789EE6FE91C3 /* TaxSuiteWidget */,
 			);
 			sourceTree = "<group>";
 		};
@@ -59,6 +131,7 @@
 			isa = PBXGroup;
 			children = (
 				A50A3CD02F895EB500618AFA /* TaxSuite.app */,
+				A553D8E1749CDE193DB2662D /* TaxSuiteWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -66,6 +139,23 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		5A66AE9FC6268CCFE9B0465D /* TaxSuiteWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C3D5E17F85B8A6E55D0AC7C2 /* Build configuration list for PBXNativeTarget "TaxSuiteWidget" */;
+			buildPhases = (
+				7C1B7EFCD2CEA35A2DF9A16E /* Sources */,
+				7FF95A87C7FAA809F2A15CE2 /* Frameworks */,
+				7B6E13CE65E460214993817D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TaxSuiteWidget;
+			productName = TaxSuiteWidget;
+			productReference = A553D8E1749CDE193DB2662D /* TaxSuiteWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		A50A3CCF2F895EB500618AFA /* TaxSuite */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A50A3CDE2F895EB700618AFA /* Build configuration list for PBXNativeTarget "TaxSuite" */;
@@ -73,10 +163,12 @@
 				A50A3CCC2F895EB500618AFA /* Sources */,
 				A50A3CCD2F895EB500618AFA /* Frameworks */,
 				A50A3CCE2F895EB500618AFA /* Resources */,
+				128B602DE4C4580B0EFDBC81 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				57FA3095433AE9BDF7A0E20C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				A50A3CD22F895EB500618AFA /* TaxSuite */,
@@ -122,11 +214,19 @@
 			projectRoot = "";
 			targets = (
 				A50A3CCF2F895EB500618AFA /* TaxSuite */,
+				5A66AE9FC6268CCFE9B0465D /* TaxSuiteWidget */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		7B6E13CE65E460214993817D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A50A3CCE2F895EB500618AFA /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -137,6 +237,15 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		7C1B7EFCD2CEA35A2DF9A16E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				95754B1EBC877DB921CD2897 /* TaxSuiteWidget.swift in Sources */,
+				40C83A7047BB3F58E5923814 /* TaxSuiteWidgetSupport.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A50A3CCC2F895EB500618AFA /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -146,7 +255,75 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		57FA3095433AE9BDF7A0E20C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TaxSuiteWidget;
+			target = 5A66AE9FC6268CCFE9B0465D /* TaxSuiteWidget */;
+			targetProxy = 469FA8D38B84D792D8A4E978 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		272AB499BB669DCA49A436F6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = TaxSuiteWidget/TaxSuiteWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7R927F3U4V;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TaxSuiteWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fumiakiMogi777.TaxSuite.TaxSuiteWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "WIDGET_EXTENSION $(inherited)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A15064A6A3C20E652736E875 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = TaxSuiteWidget/TaxSuiteWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7R927F3U4V;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TaxSuiteWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fumiakiMogi777.TaxSuite.TaxSuiteWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "WIDGET_EXTENSION DEBUG $(inherited)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 		A50A3CDF2F895EB700618AFA /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -355,6 +532,15 @@
 			buildConfigurations = (
 				A50A3CDF2F895EB700618AFA /* Debug */,
 				A50A3CE02F895EB700618AFA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C3D5E17F85B8A6E55D0AC7C2 /* Build configuration list for PBXNativeTarget "TaxSuiteWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				272AB499BB669DCA49A436F6 /* Release */,
+				A15064A6A3C20E652736E875 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
