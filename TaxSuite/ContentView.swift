@@ -81,6 +81,242 @@ struct TaxCalculator {
     }
 }
 
+struct ExpenseAutofillSuggestion: Equatable {
+    let category: String?
+    let project: String?
+    let matchedTitle: String?
+}
+
+enum ExpenseAutofillPredictor {
+    static let defaultCategories = [
+        "未分類",
+        "交通費",
+        "会議費",
+        "福利厚生費",
+        "消耗品費",
+        "通信費",
+        "ソフトウェア",
+        "外注費",
+        "固定費"
+    ]
+
+    static let defaultProjects = ["エンジニア業", "講師業", "その他"]
+
+    private static let keywordRules: [(keywords: [String], category: String)] = [
+        (["電車", "タクシー", "新幹線", "バス", "駐車", "ガソリン"], "交通費"),
+        (["カフェ", "喫茶", "打ち合わせ", "会食"], "会議費"),
+        (["昼食", "弁当", "ランチ"], "福利厚生費"),
+        (["消耗品", "文具", "ノート", "ペン", "インク"], "消耗品費"),
+        (["adobe", "figma", "notion", "chatgpt", "claude"], "ソフトウェア"),
+        (["サーバー", "aws", "gcp", "vps", "ドメイン", "回線"], "通信費")
+    ]
+
+    static func categoryOptions(from history: [ExpenseItem]) -> [String] {
+        mergedOptions(defaultCategories, history.map(\.category))
+    }
+
+    static func projectOptions(from history: [ExpenseItem]) -> [String] {
+        mergedOptions(defaultProjects, history.map(\.project))
+    }
+
+    static func predict(for title: String, from history: [ExpenseItem]) -> ExpenseAutofillSuggestion? {
+        let normalizedTitle = normalized(title)
+        guard !normalizedTitle.isEmpty else { return nil }
+
+        var categoryScores: [String: Double] = [:]
+        var projectScores: [String: Double] = [:]
+        var bestMatchedTitle: String?
+        var bestMatchScore = 0.0
+        let now = Date()
+
+        for expense in history where expense.recurringExpenseID == nil {
+            let candidateTitle = normalized(expense.title)
+            let baseScore = similarityScore(for: normalizedTitle, candidate: candidateTitle)
+            guard baseScore > 0 else { continue }
+
+            let daysAgo = max(0, Calendar.current.dateComponents([.day], from: expense.timestamp, to: now).day ?? 0)
+            let recencyWeight = max(0.35, 1.15 - min(Double(daysAgo) / 365.0, 0.8))
+            let score = baseScore * recencyWeight
+
+            categoryScores[expense.category, default: 0] += score
+            projectScores[expense.project, default: 0] += score
+
+            if score > bestMatchScore {
+                bestMatchScore = score
+                bestMatchedTitle = expense.title
+            }
+        }
+
+        if categoryScores.isEmpty && projectScores.isEmpty {
+            return fallbackSuggestion(for: normalizedTitle)
+        }
+
+        return ExpenseAutofillSuggestion(
+            category: bestMatch(in: categoryScores) ?? fallbackSuggestion(for: normalizedTitle)?.category,
+            project: bestMatch(in: projectScores),
+            matchedTitle: bestMatchedTitle
+        )
+    }
+
+    private static func mergedOptions(_ preferred: [String], _ extras: [String]) -> [String] {
+        var seen = Set<String>()
+        var ordered: [String] = []
+
+        for option in preferred + extras {
+            let trimmed = option.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, seen.insert(trimmed).inserted else { continue }
+            ordered.append(trimmed)
+        }
+
+        return ordered
+    }
+
+    private static func bestMatch(in scores: [String: Double]) -> String? {
+        scores.max { lhs, rhs in
+            if lhs.value == rhs.value {
+                return lhs.key > rhs.key
+            }
+            return lhs.value < rhs.value
+        }?.key
+    }
+
+    private static func fallbackSuggestion(for normalizedTitle: String) -> ExpenseAutofillSuggestion? {
+        guard let rule = keywordRules.first(where: { rule in
+            rule.keywords.contains { normalizedTitle.contains(normalized($0)) }
+        }) else {
+            return nil
+        }
+
+        return ExpenseAutofillSuggestion(category: rule.category, project: nil, matchedTitle: nil)
+    }
+
+    private static func similarityScore(for query: String, candidate: String) -> Double {
+        guard !query.isEmpty, !candidate.isEmpty else { return 0 }
+        if query == candidate { return 5.0 }
+        if query.contains(candidate) || candidate.contains(query) { return 3.5 }
+
+        let sharedTokens = keywords(in: query).intersection(keywords(in: candidate))
+        if !sharedTokens.isEmpty {
+            return 2.0 + (Double(sharedTokens.count) * 0.25)
+        }
+
+        return 0
+    }
+
+    private static func keywords(in value: String) -> Set<String> {
+        let normalizedValue = normalized(value)
+        guard !normalizedValue.isEmpty else { return [] }
+
+        var tokens = Set<String>()
+        for length in 2...min(4, normalizedValue.count) {
+            guard normalizedValue.count >= length else { continue }
+            for index in 0...(normalizedValue.count - length) {
+                let start = normalizedValue.index(normalizedValue.startIndex, offsetBy: index)
+                let end = normalizedValue.index(start, offsetBy: length)
+                tokens.insert(String(normalizedValue[start..<end]))
+            }
+        }
+
+        return tokens
+    }
+
+    private static func normalized(_ value: String) -> String {
+        value
+            .folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: Locale(identifier: "ja_JP"))
+            .replacingOccurrences(of: "（自動）", with: "")
+            .replacingOccurrences(of: "(自動)", with: "")
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .joined()
+            .lowercased()
+    }
+}
+
+struct ExportFile: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+struct CSVExporter {
+    static func export(expenses: [ExpenseItem], incomes: [IncomeItem]) throws -> URL {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        var lines = [
+            [
+                "record_type",
+                "date",
+                "title",
+                "amount",
+                "category",
+                "project",
+                "business_ratio",
+                "effective_amount",
+                "is_recurring_auto"
+            ].joined(separator: ",")
+        ]
+
+        for expense in expenses.sorted(by: { $0.timestamp < $1.timestamp }) {
+            lines.append([
+                "expense",
+                formatter.string(from: expense.timestamp),
+                csvField(expense.title),
+                csvField(String(Int(expense.amount))),
+                csvField(expense.category),
+                csvField(expense.project),
+                csvField(String(format: "%.2f", expense.businessRatio)),
+                csvField(String(Int(expense.effectiveAmount))),
+                csvField(expense.recurringExpenseID == nil ? "false" : "true")
+            ].joined(separator: ","))
+        }
+
+        for income in incomes.sorted(by: { $0.timestamp < $1.timestamp }) {
+            lines.append([
+                "income",
+                formatter.string(from: income.timestamp),
+                csvField(income.title),
+                csvField(String(Int(income.amount))),
+                csvField(""),
+                csvField(income.project),
+                csvField("1.00"),
+                csvField(String(Int(income.amount))),
+                csvField("false")
+            ].joined(separator: ","))
+        }
+
+        let csv = lines.joined(separator: "\n")
+        let fileName = "TaxSuite-\(timestampString(for: Date())).csv"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+
+        try csv.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    private static func csvField(_ value: String) -> String {
+        let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
+        return "\"\(escaped)\""
+    }
+
+    private static func timestampString(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return formatter.string(from: date)
+    }
+}
+
 struct GlossaryTerm: Identifiable, Hashable {
     enum Category: String, CaseIterable, Hashable {
         case tax = "税の基本"
@@ -523,22 +759,91 @@ struct IncomeEditView: View {
 // MARK: - 経費入力シート
 struct ExpenseEditView: View {
     @Environment(\.modelContext) private var modelContext; @Environment(\.dismiss) private var dismiss
+    @Query(sort: \ExpenseItem.timestamp, order: .reverse) private var expenseHistory: [ExpenseItem]
     var expense: ExpenseItem?; var initialTitle: String = ""; var initialAmount: String = ""
-    @State private var title: String = ""; @State private var amountText: String = ""; @State private var project: String = "その他"; @State private var businessRatio: Double = 1.0
-    let projects = ["エンジニア業", "講師業", "その他"]
+    @State private var title: String = ""
+    @State private var amountText: String = ""
+    @State private var category: String = "未分類"
+    @State private var project: String = "その他"
+    @State private var businessRatio: Double = 1.0
+    @State private var suggestion: ExpenseAutofillSuggestion?
+    @State private var isApplyingSuggestion = false
+    @State private var hasManualCategoryOverride = false
+    @State private var hasManualProjectOverride = false
+
+    private var categoryOptions: [String] {
+        ExpenseAutofillPredictor.categoryOptions(from: expenseHistory)
+    }
+
+    private var projectOptions: [String] {
+        ExpenseAutofillPredictor.projectOptions(from: expenseHistory)
+    }
+
+    private var categoryBinding: Binding<String> {
+        Binding(
+            get: { category },
+            set: { newValue in
+                category = newValue
+                if !isApplyingSuggestion {
+                    hasManualCategoryOverride = true
+                }
+            }
+        )
+    }
+
+    private var projectBinding: Binding<String> {
+        Binding(
+            get: { project },
+            set: { newValue in
+                project = newValue
+                if !isApplyingSuggestion {
+                    hasManualProjectOverride = true
+                }
+            }
+        )
+    }
+
+    private var suggestionMessage: String? {
+        guard expense == nil, let suggestion else { return nil }
+
+        if let matchedTitle = suggestion.matchedTitle, suggestion.project != nil {
+            return "過去の「\(matchedTitle)」を参考に、カテゴリとプロジェクトを提案しています。"
+        }
+
+        if suggestion.category != nil {
+            return "項目名からカテゴリを自動提案しています。必要なら手動で変更できます。"
+        }
+
+        return nil
+    }
     
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("項目名")) {
+                Section(
+                    header: Text("項目名"),
+                    footer: suggestionMessage.map { Text($0).foregroundColor(.blue) }
+                ) {
                     TextField("例：タクシー代", text: $title)
                 }
                 // 🌟 ウォレットUIを適用
                 Section(header: Text("金額をチャージ入力")) {
                     WalletChargeInputView(amountText: $amountText)
                 }
-                Section(header: Text("プロジェクト")) {
-                    Picker("プロジェクト", selection: $project) { ForEach(projects, id: \.self) { proj in Text(proj).tag(proj) } }.pickerStyle(.segmented)
+                Section(header: Text("分類")) {
+                    Picker("カテゴリ", selection: categoryBinding) {
+                        ForEach(categoryOptions, id: \.self) { item in
+                            Text(item).tag(item)
+                        }
+                    }
+                    .tint(.black)
+
+                    Picker("プロジェクト", selection: projectBinding) {
+                        ForEach(projectOptions, id: \.self) { item in
+                            Text(item).tag(item)
+                        }
+                    }
+                    .tint(.black)
                 }
                 Section(header: Text("事業用割合 (家事按分)"), footer: Text("プライベートの支出が含まれる場合、事業の経費とする割合を指定します。")) {
                     VStack {
@@ -553,17 +858,74 @@ struct ExpenseEditView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("保存") {
                         let amount = Double(amountText) ?? 0
-                        if let e = expense { e.title = title; e.amount = amount; e.project = project; e.businessRatio = businessRatio }
-                        else { modelContext.insert(ExpenseItem(timestamp: Date(), title: title, amount: amount, project: project, businessRatio: businessRatio)) }
+                        if let e = expense {
+                            e.title = title
+                            e.amount = amount
+                            e.category = category
+                            e.project = project
+                            e.businessRatio = businessRatio
+                        } else {
+                            modelContext.insert(
+                                ExpenseItem(
+                                    timestamp: Date(),
+                                    title: title,
+                                    amount: amount,
+                                    category: category,
+                                    project: project,
+                                    businessRatio: businessRatio
+                                )
+                            )
+                        }
                         dismiss()
                     }.fontWeight(.bold).disabled(title.isEmpty || amountText.isEmpty)
                 }
             }
             .onAppear {
-                if let e = expense { title = e.title; amountText = String(Int(e.amount)); project = e.project; businessRatio = e.businessRatio }
-                else { title = initialTitle; amountText = initialAmount }
+                if let e = expense {
+                    title = e.title
+                    amountText = String(Int(e.amount))
+                    category = e.category
+                    project = e.project
+                    businessRatio = e.businessRatio
+                    hasManualCategoryOverride = true
+                    hasManualProjectOverride = true
+                } else {
+                    title = initialTitle
+                    amountText = initialAmount
+                    applySuggestion(for: initialTitle)
+                }
+            }
+            .onChange(of: title) { _, newTitle in
+                guard expense == nil else { return }
+                applySuggestion(for: newTitle)
             }
         }
+    }
+
+    private func applySuggestion(for rawTitle: String) {
+        let trimmedTitle = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        suggestion = ExpenseAutofillPredictor.predict(for: trimmedTitle, from: expenseHistory)
+
+        guard !trimmedTitle.isEmpty else {
+            if !hasManualCategoryOverride {
+                category = "未分類"
+            }
+            if !hasManualProjectOverride {
+                project = "その他"
+            }
+            return
+        }
+
+        guard let suggestion else { return }
+
+        isApplyingSuggestion = true
+        if let predictedCategory = suggestion.category, !hasManualCategoryOverride {
+            category = predictedCategory
+        }
+        if let predictedProject = suggestion.project, !hasManualProjectOverride {
+            project = predictedProject
+        }
+        isApplyingSuggestion = false
     }
 }
 
@@ -743,8 +1105,12 @@ struct GlossaryTermDetailView: View {
 }
 
 struct SettingsView: View {
+    @Query(sort: \ExpenseItem.timestamp, order: .reverse) private var expenses: [ExpenseItem]
+    @Query(sort: \IncomeItem.timestamp, order: .reverse) private var incomes: [IncomeItem]
     @Binding var taxRate: Double
     @State private var showingProModal = false
+    @State private var exportFile: ExportFile?
+    @State private var exportErrorMessage: String?
     var body: some View {
         NavigationStack {
             ZStack {
@@ -769,6 +1135,27 @@ struct SettingsView: View {
                             .padding(.vertical, 4)
                         }
                     }
+                    Section(header: Text("データ")) {
+                        Button(action: exportCSV) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "square.and.arrow.up.fill")
+                                    .foregroundColor(.orange)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("CSVを書き出す")
+                                        .font(.headline)
+                                        .foregroundColor(.black)
+                                    Text("売上と経費を会計ソフト向けにシェア")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                                    .font(.caption)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
                     Section(header: Text("学ぶ")) {
                         NavigationLink(destination: TaxKnowledgeGlossaryView()) {
                             HStack(spacing: 12) {
@@ -787,7 +1174,29 @@ struct SettingsView: View {
                         }
                     }
                 }.listStyle(.insetGrouped)
-            }.navigationTitle("設定").sheet(isPresented: $showingProModal) { ProUpgradeView() }
+            }
+            .navigationTitle("設定")
+            .sheet(isPresented: $showingProModal) { ProUpgradeView() }
+            .sheet(item: $exportFile) { exportFile in
+                ShareSheet(activityItems: [exportFile.url])
+            }
+            .alert("CSVを書き出せませんでした", isPresented: Binding(
+                get: { exportErrorMessage != nil },
+                set: { if !$0 { exportErrorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(exportErrorMessage ?? "不明なエラーが発生しました。")
+            }
+        }
+    }
+
+    private func exportCSV() {
+        do {
+            let url = try CSVExporter.export(expenses: expenses, incomes: incomes)
+            exportFile = ExportFile(url: url)
+        } catch {
+            exportErrorMessage = error.localizedDescription
         }
     }
 }
