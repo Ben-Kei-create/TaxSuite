@@ -25,6 +25,27 @@ nonisolated struct TaxSuiteWidgetSnapshot: Codable, Equatable {
     let recentExpenseTitle: String?
 }
 
+// MARK: - WidgetButtonSlot
+
+/// ホーム画面ウィジェットのクイック追加ボタン 1 スロット分の設定値。
+/// App Group の UserDefaults に JSON として保存し、アプリ ↔ ウィジェット間で共有する。
+nonisolated struct WidgetButtonSlot: Codable, Equatable, Identifiable {
+    /// スロット番号（0 〜 3 の固定インデックス）
+    var id: Int
+    var title: String
+    var amount: Double
+    var category: String
+    var project: String
+
+    /// 出荷時デフォルト（既存のハードコード値と完全一致）
+    static let defaultSlots: [WidgetButtonSlot] = [
+        WidgetButtonSlot(id: 0, title: "カフェ",  amount: 600,  category: "会議費",     project: "エンジニア業"),
+        WidgetButtonSlot(id: 1, title: "電車",    amount: 180,  category: "交通費",     project: "その他"),
+        WidgetButtonSlot(id: 2, title: "昼食",    amount: 1000, category: "福利厚生費", project: "その他"),
+        WidgetButtonSlot(id: 3, title: "消耗品",  amount: 1500, category: "消耗品費",   project: "その他")
+    ]
+}
+
 nonisolated struct TaxSuiteQuickExpenseAction: Codable, Equatable, Identifiable {
     let id: UUID
     let title: String
@@ -92,6 +113,27 @@ nonisolated enum TaxSuiteWidgetStore {
 
     private nonisolated static var pendingQuickExpenseKey: String {
         "taxsuite_widget_pending_quick_expenses_v1"
+    }
+
+    private nonisolated static var buttonSlotsKey: String {
+        "taxsuite_widget_button_slots_v1"
+    }
+
+    /// 4 つのスロット設定を App Group に保存し、ウィジェットのタイムラインを即時リロードする。
+    nonisolated static func saveButtonSlots(_ slots: [WidgetButtonSlot]) {
+        let encoder = JSONEncoder()
+        guard let data = try? encoder.encode(slots) else { return }
+        sharedDefaults.set(data, forKey: buttonSlotsKey)
+        reloadTimelines()
+    }
+
+    /// 保存済みスロット設定を読み込む。未保存の場合はデフォルト値を返す。
+    nonisolated static func loadButtonSlots() -> [WidgetButtonSlot] {
+        guard let data = sharedDefaults.data(forKey: buttonSlotsKey) else {
+            return WidgetButtonSlot.defaultSlots
+        }
+        return (try? JSONDecoder().decode([WidgetButtonSlot].self, from: data))
+            ?? WidgetButtonSlot.defaultSlots
     }
 
     private nonisolated static func pendingQuickExpenses() -> [TaxSuiteQuickExpenseAction] {

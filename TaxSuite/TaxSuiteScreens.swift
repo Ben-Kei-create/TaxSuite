@@ -501,6 +501,7 @@ struct IncomeEditView: View {
 
     @State private var title: String = ""
     @State private var amountText: String = ""
+    @State private var selectedDate: Date = Date()
     @State private var project: String = "エンジニア業"
 
     private let projects = ["エンジニア業", "講師業", "その他"]
@@ -514,6 +515,17 @@ struct IncomeEditView: View {
                     }
                     Section(header: Text("金額")) {
                         WalletChargeInputView(amountText: $amountText)
+                    }
+                    Section(header: Text("日付")) {
+                        DatePicker(
+                            "受取日",
+                            selection: $selectedDate,
+                            in: ...Date(),
+                            displayedComponents: [.date]
+                        )
+                        .datePickerStyle(.compact)
+                        .tint(.black)
+                        .environment(\.locale, Locale(identifier: "ja_JP"))
                     }
                     Section(header: Text("プロジェクト")) {
                         Picker("プロジェクト", selection: $project) {
@@ -541,7 +553,7 @@ struct IncomeEditView: View {
     }
 
     private func saveIncome() {
-        modelContext.insert(IncomeItem(title: title, amount: Double(amountText) ?? 0, project: project))
+        modelContext.insert(IncomeItem(timestamp: selectedDate, title: title, amount: Double(amountText) ?? 0, project: project))
         dismiss()
     }
 }
@@ -557,6 +569,7 @@ struct ExpenseEditView: View {
 
     @State private var title: String = ""
     @State private var amountText: String = ""
+    @State private var selectedDate: Date = Date()
     @State private var category: String = "未分類"
     @State private var project: String = "その他"
     @State private var businessRatio: Double = 1.0
@@ -633,6 +646,17 @@ struct ExpenseEditView: View {
                     }
                     Section(header: Text("金額")) {
                         WalletChargeInputView(amountText: $amountText)
+                    }
+                    Section(header: Text("日付")) {
+                        DatePicker(
+                            "発生日",
+                            selection: $selectedDate,
+                            in: ...Date(),
+                            displayedComponents: [.date]
+                        )
+                        .datePickerStyle(.compact)
+                        .tint(.black)
+                        .environment(\.locale, Locale(identifier: "ja_JP"))
                     }
                     Section(header: Text("分類")) {
                         Picker("カテゴリ", selection: categoryBinding) {
@@ -714,6 +738,7 @@ struct ExpenseEditView: View {
         if let expense {
             title = expense.title
             amountText = String(Int(expense.amount))
+            selectedDate = expense.timestamp
             category = expense.category
             project = expense.project
             businessRatio = expense.businessRatio
@@ -723,6 +748,7 @@ struct ExpenseEditView: View {
         } else {
             title = initialTitle
             amountText = initialAmount
+            selectedDate = Date()
             note = ""
             applySuggestion(for: initialTitle)
         }
@@ -731,16 +757,17 @@ struct ExpenseEditView: View {
     private func saveExpense() {
         let amount = Double(amountText) ?? 0
         if let expense {
-            expense.title = title
-            expense.amount = amount
-            expense.category = category
-            expense.project = project
+            expense.title         = title
+            expense.amount        = amount
+            expense.timestamp     = selectedDate
+            expense.category      = category
+            expense.project       = project
             expense.businessRatio = businessRatio
-            expense.note = note
+            expense.note          = note
         } else {
             modelContext.insert(
                 ExpenseItem(
-                    timestamp: Date(),
+                    timestamp: selectedDate,
                     title: title,
                     amount: amount,
                     category: category,
@@ -1633,6 +1660,23 @@ struct SettingsView: View {
                             .padding(.vertical, 4)
                         }
                     }
+                    Section(header: Text("ウィジェット")) {
+                        NavigationLink(destination: WidgetButtonSettingsView()) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "square.grid.2x2.fill")
+                                    .foregroundColor(.purple)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("クイック追加ボタン")
+                                        .font(.headline)
+                                        .foregroundColor(.black)
+                                    Text("ホーム画面ウィジェットの4ボタンを設定")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
                     Section(header: Text("データ")) {
                         LabeledContent("書き出し形式") {
                             Picker("書き出し形式", selection: $selectedExportFormat) {
@@ -2409,5 +2453,268 @@ struct ProUpgradeView: View {
                     .foregroundColor(.gray)
             }
         }
+    }
+}
+
+// MARK: - WidgetButtonSettingsView
+
+/// ウィジェットの 4 つのクイック追加ボタンを設定する画面。
+/// スロット一覧 + ミニプレビューカード + 各スロットへの編集 NavigationLink を提供する。
+struct WidgetButtonSettingsView: View {
+    @Query(sort: \ExpenseItem.timestamp, order: .reverse) private var expenseHistory: [ExpenseItem]
+    @Query(sort: \RecurringExpense.dayOfMonth) private var recurringExpenses: [RecurringExpense]
+
+    @State private var slots: [WidgetButtonSlot] = TaxSuiteWidgetStore.loadButtonSlots()
+
+    var body: some View {
+        TaxSuiteScreenSurface {
+            List {
+                // ミニプレビューカード
+                Section {
+                    widgetPreviewCard
+                        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                        .listRowBackground(Color.clear)
+                }
+
+                // スロット一覧
+                Section(header: Text("ボタン設定")) {
+                    ForEach($slots) { $slot in
+                        NavigationLink(destination: WidgetSlotEditorView(slot: $slot, expenseHistory: Array(expenseHistory.prefix(60)), recurringExpenses: recurringExpenses)) {
+                            slotRow(slot)
+                        }
+                    }
+                }
+
+                // デフォルトに戻す
+                Section {
+                    Button(role: .destructive) {
+                        withAnimation {
+                            slots = WidgetButtonSlot.defaultSlots
+                            TaxSuiteWidgetStore.saveButtonSlots(slots)
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.counterclockwise")
+                            Text("デフォルトに戻す")
+                        }
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+        }
+        .navigationTitle("ウィジェット設定")
+        .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: slots) { _, newSlots in
+            TaxSuiteWidgetStore.saveButtonSlots(newSlots)
+        }
+    }
+
+    // MARK: Mini preview card
+
+    private var widgetPreviewCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("プレビュー")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.secondary)
+
+            // 2×2 ボタングリッド
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
+                spacing: 8
+            ) {
+                ForEach(slots) { slot in
+                    previewButton(slot)
+                }
+            }
+        }
+        .padding(14)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.985, green: 0.985, blue: 0.975),
+                    Color(red: 0.956, green: 0.961, blue: 0.985)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private func previewButton(_ slot: WidgetButtonSlot) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(slot.title.isEmpty ? "未設定" : slot.title)
+                .font(.caption.weight(.semibold))
+                .foregroundColor(slot.title.isEmpty ? .secondary : .primary)
+                .lineLimit(1)
+            Text(slot.amount > 0 ? "¥\(Int(slot.amount).formatted())" : "---")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundColor(slot.amount > 0 ? .primary : .secondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.88))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.black.opacity(0.05), lineWidth: 1)
+        )
+    }
+
+    // MARK: Slot row
+
+    private func slotRow(_ slot: WidgetButtonSlot) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.purple.opacity(0.12))
+                    .frame(width: 32, height: 32)
+                Text("\(slot.id + 1)")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(.purple)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(slot.title.isEmpty ? "未設定" : slot.title)
+                    .font(.body)
+                    .foregroundColor(slot.title.isEmpty ? .secondary : .primary)
+                Text(slot.amount > 0
+                     ? "¥\(Int(slot.amount).formatted())  \(slot.category)  \(slot.project)"
+                     : "金額未設定")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+// MARK: - WidgetSlotEditorView
+
+/// 1 スロット分のクイック追加ボタンを編集するフォーム。
+/// `@Binding` でスロットを受け取り、変更は即時に呼び元の `slots` に反映される。
+struct WidgetSlotEditorView: View {
+    @Binding var slot: WidgetButtonSlot
+    let expenseHistory: [ExpenseItem]
+    let recurringExpenses: [RecurringExpense]
+
+    @State private var amountText: String = ""
+
+    private let categoryOptions = ExpenseAutofillPredictor.defaultCategories
+    private let projectOptions  = ExpenseAutofillPredictor.defaultProjects
+
+    var body: some View {
+        TaxSuiteScreenSurface {
+            Form {
+                // 基本情報
+                Section(header: Text("ボタン情報")) {
+                    TextField("名前（例: カフェ、電車）", text: $slot.title)
+
+                    WalletChargeInputView(amountText: $amountText)
+                        .onChange(of: amountText) { _, v in
+                            slot.amount = Double(v) ?? slot.amount
+                        }
+
+                    Picker("カテゴリ", selection: $slot.category) {
+                        ForEach(categoryOptions, id: \.self) { Text($0).tag($0) }
+                    }
+
+                    Picker("プロジェクト", selection: $slot.project) {
+                        ForEach(projectOptions, id: \.self) { Text($0).tag($0) }
+                    }
+                }
+
+                // 経費履歴から選ぶ
+                if !recentSuggestions.isEmpty {
+                    Section(header: Text("履歴から選ぶ")) {
+                        ForEach(recentSuggestions, id: \.title) { item in
+                            Button {
+                                applyHistoryItem(item)
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(item.title)
+                                            .font(.body)
+                                            .foregroundColor(.primary)
+                                        Text("¥\(Int(item.effectiveAmount).formatted())  \(item.category)  \(item.project)")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "arrow.up.left.circle")
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                // 固定費から選ぶ
+                if !recurringExpenses.isEmpty {
+                    Section(header: Text("固定費から選ぶ")) {
+                        ForEach(recurringExpenses) { recurring in
+                            Button {
+                                applyRecurring(recurring)
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(recurring.title)
+                                            .font(.body)
+                                            .foregroundColor(.primary)
+                                        Text("¥\(Int(recurring.amount).formatted())  \(recurring.project)  毎月\(recurring.dayOfMonth)日")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "arrow.up.left.circle")
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("スロット \(slot.id + 1) を編集")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            amountText = slot.amount > 0 ? String(Int(slot.amount)) : ""
+        }
+    }
+
+    // MARK: - Computed
+
+    /// 経費履歴から重複タイトルを除いた上位 10 件
+    private var recentSuggestions: [ExpenseItem] {
+        var seen = Set<String>()
+        return expenseHistory.filter { item in
+            guard !item.title.isEmpty else { return false }
+            return seen.insert(item.title).inserted
+        }.prefix(10).map { $0 }
+    }
+
+    // MARK: - Actions
+
+    private func applyHistoryItem(_ item: ExpenseItem) {
+        slot.title    = item.title
+        slot.amount   = item.effectiveAmount
+        slot.category = item.category
+        slot.project  = item.project
+        amountText    = String(Int(item.effectiveAmount))
+    }
+
+    private func applyRecurring(_ recurring: RecurringExpense) {
+        slot.title    = recurring.title
+        slot.amount   = recurring.amount
+        slot.category = ExpenseAutofillPredictor.predict(for: recurring.title, from: expenseHistory)?.category ?? "未分類"
+        slot.project  = recurring.project
+        amountText    = String(Int(recurring.amount))
     }
 }

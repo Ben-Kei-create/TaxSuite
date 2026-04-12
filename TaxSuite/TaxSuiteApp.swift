@@ -26,7 +26,7 @@ struct TaxSuiteApp: App {
         // Google Sign-In: 前回のセッションを非同期で復元
         Task { await GoogleAuthService.shared.restorePreviousSignIn() }
     }
-
+    
     var sharedModelContainer: ModelContainer = {
         do {
             return try TaxSuitePersistence.makeContainer()
@@ -34,16 +34,14 @@ struct TaxSuiteApp: App {
             fatalError("Could not create ModelContainer: \(error)")
         }
     }()
-
     var body: some Scene {
         WindowGroup {
             ContentView()
+            // 🌟 ここに移動します（Viewに対して適用）
+                .onOpenURL { url in
+                    GoogleAuthService.shared.handle(url)
+                }
         }
         .modelContainer(sharedModelContainer)
-        // Google Sign-In OAuth コールバックを処理
-        // （Info.plist の CFBundleURLSchemes に逆引き Client ID を登録してください）
-        .onOpenURL { url in
-            GoogleAuthService.shared.handle(url)
-        }
     }
 }
