@@ -23,6 +23,8 @@ struct TaxSuiteApp: App {
 #if canImport(GoogleMobileAds)
         MobileAds.shared.start(completionHandler: nil)
 #endif
+        // Google Sign-In: 前回のセッションを非同期で復元
+        Task { await GoogleAuthService.shared.restorePreviousSignIn() }
     }
 
     var sharedModelContainer: ModelContainer = {
@@ -38,5 +40,10 @@ struct TaxSuiteApp: App {
             ContentView()
         }
         .modelContainer(sharedModelContainer)
+        // Google Sign-In OAuth コールバックを処理
+        // （Info.plist の CFBundleURLSchemes に逆引き Client ID を登録してください）
+        .onOpenURL { url in
+            GoogleAuthService.shared.handle(url)
+        }
     }
 }

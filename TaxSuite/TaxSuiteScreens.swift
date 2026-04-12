@@ -1152,265 +1152,6 @@ struct AllHistoryView: View {
     }
 }
 
-struct AnalyticsView: View {
-    @Query private var expenses: [ExpenseItem]
-    @AppStorage("analyticsChartStyle") private var analyticsChartStyleRaw = AnalyticsChartStyle.bar.rawValue
-
-    @State private var selectedRange: AnalyticsRange = .month
-    @State private var animatedData: [CategorySum] = []
-
-    private var chartStyle: AnalyticsChartStyle {
-        get { AnalyticsChartStyle(rawValue: analyticsChartStyleRaw) ?? .bar }
-        set { analyticsChartStyleRaw = newValue.rawValue }
-    }
-
-    private var filteredExpenses: [ExpenseItem] {
-        expenses.filter { selectedRange.contains($0.timestamp, reference: Date()) }
-    }
-
-    private var expenseSummary: [CategorySum] {
-        let grouped = Dictionary(grouping: filteredExpenses) { expense in
-            let trimmed = expense.category.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? "未分類" : trimmed
-        }
-
-        return grouped
-            .map { category, items in
-                CategorySum(
-                    name: category,
-                    total: items.reduce(0) { $0 + $1.effectiveAmount },
-                    subscriptionTotal: items.filter(\.isSubscription).reduce(0) { $0 + $1.effectiveAmount }
-                )
-            }
-            .sorted { $0.total > $1.total }
-    }
-
-    private var subscriptionTotal: Double {
-        filteredExpenses.filter(\.isSubscription).reduce(0) { $0 + $1.effectiveAmount }
-    }
-
-    private var variableTotal: Double {
-        filteredExpenses.filter { !$0.isSubscription }.reduce(0) { $0 + $1.effectiveAmount }
-    }
-
-    private var subscriptionCount: Int {
-        filteredExpenses.filter(\.isSubscription).count
-    }
-
-    private var variableCount: Int {
-        filteredExpenses.filter { !$0.isSubscription }.count
-    }
-
-    private var totalSpentInRange: Double {
-        subscriptionTotal + variableTotal
-    }
-
-    private var subscriptionShare: Double {
-        guard totalSpentInRange > 0 else { return 0 }
-        return subscriptionTotal / totalSpentInRange
-    }
-
-    private var analyticsFingerprint: String {
-        [
-            selectedRange.rawValue,
-            chartStyle.rawValue,
-            String(filteredExpenses.count),
-            String(format: "%.2f", subscriptionTotal),
-            String(format: "%.2f", variableTotal)
-        ].joined(separator: "|")
-    }
-
-    var body: some View {
-        NavigationStack {
-            TaxSuiteScreenSurface {
-                if filteredExpenses.isEmpty {
-                    VStack(spacing: 12) {
-                        Picker("期間", selection: $selectedRange) {
-                            ForEach(AnalyticsRange.allCases) { range in
-                                Text(range.rawValue).tag(range)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.horizontal, 20)
-
-                        Spacer()
-
-                        Text("\(selectedRange.title)のデータがありません")
-                            .foregroundColor(.gray)
-
-                        Spacer()
-                    }
-                } else {
-                    List {
-                        Section {
-                            Picker("期間", selection: $selectedRange) {
-                                ForEach(AnalyticsRange.allCases) { range in
-                                    Text(range.rawValue).tag(range)
-                                }
-                            }
-                            .pickerStyle(.segmented)
-                            .padding(.vertical, 4)
-                        }
-
-                        Section(header: Text("支出タイプ").taxSuiteListHeaderStyle()) {
-                            spendingTypeBreakdownCard
-                            analyticsSummaryCard(
-                                title: "サブスク",
-                                amount: subscriptionTotal,
-                                count: subscriptionCount,
-                                tint: Color(red: 0.14, green: 0.44, blue: 0.82)
-                            )
-                            analyticsSummaryCard(
-                                title: "通常支出",
-                                amount: variableTotal,
-                                count: variableCount,
-                                tint: Color(red: 0.88, green: 0.47, blue: 0.17)
-                            )
-                        }
-
-                        Section(header: Text(chartStyle.rawValue).taxSuiteListHeaderStyle()) {
-                            Group {
-                                if chartStyle == .bar {
-                                    Chart(animatedData) { item in
-                                        BarMark(
-                                            x: .value("金額", item.total),
-                                            y: .value("カテゴリ", item.name)
-                                        )
-                                        .foregroundStyle(by: .value("カテゴリ", item.name))
-                                        .cornerRadius(8)
-                                    }
-                                } else {
-                                    Chart(animatedData) { item in
-                                        SectorMark(
-                                            angle: .value("金額", item.total),
-                                            innerRadius: .ratio(0.58),
-                                            angularInset: 2
-                                        )
-                                        .foregroundStyle(by: .value("カテゴリ", item.name))
-                                    }
-                                    .chartLegend(.visible)
-                                }
-                            }
-                            .frame(height: 260)
-                            .padding(.vertical, 8)
-                            .animation(.spring(response: 0.7, dampingFraction: 0.7), value: animatedData)
-                        }
-
-                        Section(header: Text("カテゴリ内訳").taxSuiteListHeaderStyle()) {
-                            ForEach(expenseSummary) { item in
-                                HStack(alignment: .top) {
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Text(item.name)
-                                            .foregroundColor(.black)
-                                        if item.subscriptionTotal > 0 {
-                                            Text("サブスク ¥\(Int(item.subscriptionTotal).formatted()) を含む")
-                                                .font(.caption2)
-                                                .foregroundColor(.blue)
-                                        }
-                                    }
-                                    Spacer()
-                                    Text("¥\(Int(item.total).formatted())")
-                                        .taxSuiteAmountStyle(size: 16, weight: .bold, tracking: -0.2)
-                                }
-                                .padding(.vertical, 2)
-                            }
-                        }
-                    }
-                    .listStyle(.insetGrouped)
-                    .onAppear(perform: animateChart)
-                    .onChange(of: analyticsFingerprint) { _, _ in
-                        animateChart()
-                    }
-                }
-            }
-            .navigationTitle("分析")
-        }
-    }
-
-    @ViewBuilder
-    private func analyticsSummaryCard(title: String, amount: Double, count: Int, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(.black)
-
-            Text("¥\(Int(amount).formatted())")
-                .taxSuiteAmountStyle(size: 22, weight: .bold, tracking: -0.4)
-                .foregroundColor(.black)
-
-            Text("\(count)件")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 4)
-        .padding(.horizontal, 2)
-        .listRowBackground(tint.opacity(0.10))
-    }
-
-    private var spendingTypeBreakdownCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("支出の内訳")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.black)
-                Spacer()
-                Text("\(Int((subscriptionShare * 100).rounded()))% がサブスク")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.blue)
-            }
-
-            GeometryReader { proxy in
-                let width = max(proxy.size.width, 1)
-                let subscriptionWidth = max(width * subscriptionShare, subscriptionTotal > 0 ? 20 : 0)
-                let variableWidth = max(width - subscriptionWidth, variableTotal > 0 ? 20 : 0)
-
-                HStack(spacing: 0) {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color(red: 0.14, green: 0.44, blue: 0.82))
-                        .frame(width: subscriptionWidth)
-
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color(red: 0.88, green: 0.47, blue: 0.17))
-                        .frame(width: variableWidth)
-                }
-            }
-            .frame(height: 14)
-
-            HStack(spacing: 12) {
-                legendPill(title: "サブスク", amount: subscriptionTotal, tint: Color(red: 0.14, green: 0.44, blue: 0.82))
-                legendPill(title: "通常支出", amount: variableTotal, tint: Color(red: 0.88, green: 0.47, blue: 0.17))
-            }
-        }
-        .padding(.vertical, 6)
-    }
-
-    private func legendPill(title: String, amount: Double, tint: Color) -> some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(tint)
-                .frame(width: 8, height: 8)
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-            Text("¥\(Int(amount).formatted())")
-                .font(.caption.weight(.semibold))
-                .foregroundColor(.black)
-        }
-    }
-
-    private func animateChart() {
-        let nextData = expenseSummary
-        animatedData = nextData.map { CategorySum(name: $0.name, total: 0, subscriptionTotal: $0.subscriptionTotal) }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-            withAnimation(.spring(response: 0.7, dampingFraction: 0.7)) {
-                animatedData = nextData
-            }
-        }
-    }
-}
-
 struct TaxKnowledgeGlossaryView: View {
     @State private var searchText = ""
 
@@ -1831,18 +1572,11 @@ struct SettingsView: View {
     @Binding var taxRate: Double
     @AppStorage("isTaxSuiteProEnabled") private var isTaxSuiteProEnabled = false
     @AppStorage("analyticsChartStyle") private var analyticsChartStyleRaw = AnalyticsChartStyle.bar.rawValue
-    @AppStorage("gmailConnected") private var gmailConnected = false
-    @AppStorage("gmailAddress") private var gmailAddress = ""
     @State private var exportFile: ExportFile?
     @State private var exportErrorMessage: String?
     @State private var selectedExportFormat: ExportFormat = .standard
-
-    private var gmailSummaryText: String {
-        if gmailConnected {
-            return gmailAddress.isEmpty ? "連携済み" : gmailAddress
-        }
-        return "未連携"
-    }
+    // Google Auth の状態を監視（@Observable singleton）
+    @State private var authService = GoogleAuthService.shared
 
     var body: some View {
         NavigationStack {
@@ -1941,23 +1675,16 @@ struct SettingsView: View {
                         }
                     }
                     Section(header: Text("連携")) {
-                        NavigationLink(destination: GmailConnectionSettingsView()) {
-                            HStack(spacing: 12) {
-                                Image(systemName: gmailConnected ? "checkmark.circle.fill" : "envelope.badge")
-                                    .foregroundColor(gmailConnected ? .green : .red)
-                                Text("Gmail 連携")
-                                    .font(.headline)
-                                    .foregroundColor(.black)
-                                Spacer()
-                                Text(gmailSummaryText)
-                                    .font(.caption)
-                                    .foregroundColor(gmailConnected ? .green : .secondary)
-                            }
-                            .padding(.vertical, 4)
-                        }
+                        // Google アカウント認証行（@Observable で状態を自動監視）
+                        GoogleSignInRow(authService: authService)
 
-                        if gmailConnected {
-                            NavigationLink(destination: ReportDraftComposerView(defaultFormat: selectedExportFormat, taxRate: taxRate)) {
+                        if authService.isSignedIn {
+                            NavigationLink(
+                                destination: ReportDraftComposerView(
+                                    defaultFormat: selectedExportFormat,
+                                    taxRate: taxRate
+                                )
+                            ) {
                                 HStack(spacing: 12) {
                                     Image(systemName: "paperplane.circle.fill")
                                         .foregroundColor(.indigo)
@@ -1968,17 +1695,31 @@ struct SettingsView: View {
                                 }
                                 .padding(.vertical, 4)
                             }
+
+                            NavigationLink(destination: GmailReceiptInboxView()) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "envelope.open.fill")
+                                        .foregroundColor(.orange)
+                                    Text("領収書メールを取り込む")
+                                        .font(.headline)
+                                        .foregroundColor(.black)
+                                    Spacer()
+                                }
+                                .padding(.vertical, 4)
+                            }
                         } else {
                             HStack(spacing: 12) {
                                 Image(systemName: "lock.fill")
                                     .foregroundColor(.gray)
-                                Text("Gmail 用の報告下書き")
-                                    .font(.headline)
-                                    .foregroundColor(.gray)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Gmail 用の報告下書き")
+                                        .font(.headline)
+                                        .foregroundColor(.gray)
+                                    Text("ログイン後に解放")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
                                 Spacer()
-                                Text("ロック")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
                             }
                             .padding(.vertical, 4)
                         }
@@ -2201,62 +1942,307 @@ struct RecurringExpenseEditView: View {
     }
 }
 
-struct GmailConnectionSettingsView: View {
-    @Environment(\.dismiss) private var dismiss
-    @AppStorage("gmailConnected") private var gmailConnected = false
-    @AppStorage("gmailAddress") private var gmailAddress = ""
+// MARK: - GoogleSignInRow
 
-    private var trimmedAddress: String {
-        gmailAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+/// Google Sign-In の認証状態を表示・操作する汎用行コンポーネント。
+/// `GoogleAuthService` は `@Observable` なので、`let` で渡すだけで
+/// SwiftUI が `isSignedIn` 等の変化を自動追跡する。
+struct GoogleSignInRow: View {
+    let authService: GoogleAuthService
+
+    @State private var isSigningIn = false
+    @State private var authError: String?
+    @State private var showingError = false
+
+    var body: some View {
+        if authService.isSignedIn {
+            signedInContent
+        } else {
+            signInButton
+        }
     }
+
+    // MARK: Signed-in state
+
+    private var signedInContent: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(.green)
+                .font(.system(size: 22))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(authService.userDisplayName.isEmpty ? "Google アカウント" : authService.userDisplayName)
+                    .font(.headline)
+                    .foregroundColor(.black)
+                Text(authService.userEmail)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Button("ログアウト") {
+                authService.signOut()
+            }
+            .font(.caption.bold())
+            .foregroundColor(.red)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.red.opacity(0.08))
+            .clipShape(Capsule())
+        }
+        .padding(.vertical, 6)
+    }
+
+    // MARK: Not signed-in state
+
+    private var signInButton: some View {
+        Button {
+            guard !isSigningIn else { return }
+            Task {
+                isSigningIn = true
+                defer { isSigningIn = false }
+                do {
+                    try await authService.signIn()
+                } catch {
+                    authError = error.localizedDescription
+                    showingError = true
+                }
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Group {
+                    if isSigningIn {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .tint(.blue)
+                    } else {
+                        Image(systemName: "person.circle")
+                            .foregroundColor(.blue)
+                            .font(.system(size: 22))
+                    }
+                }
+                .frame(width: 22, height: 22)
+
+                Text(isSigningIn ? "認証中..." : "Google でログイン")
+                    .font(.headline)
+                    .foregroundColor(isSigningIn ? .secondary : .black)
+
+                Spacer()
+
+                if !isSigningIn {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.vertical, 6)
+        }
+        .buttonStyle(.plain)
+        .disabled(isSigningIn)
+        .alert("ログインに失敗しました", isPresented: $showingError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(authError ?? "不明なエラーが発生しました。")
+        }
+    }
+}
+
+// MARK: - GmailReceiptInboxView
+
+/// Gmail から取得した領収書メールを一覧表示する画面。
+/// 各メールの subject / from / 金額候補を表示し、タップで経費入力のヒントに使える。
+struct GmailReceiptInboxView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \ExpenseItem.timestamp, order: .reverse) private var expenseHistory: [ExpenseItem]
+
+    @State private var messages: [GmailMessageSummary] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var showingError = false
 
     var body: some View {
         TaxSuiteScreenSurface {
-            Form {
-                Section {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Gmail を先に準備")
-                            .font(.title3.bold())
-                        Text("下書き共有を使う前に接続しておきます。")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    }
-                    .padding(.vertical, 2)
-                }
-
-                Section("アカウント") {
-                    TextField("Gmail アドレス", text: $gmailAddress)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
-
-                    Button(gmailConnected ? "連携を解除" : "このアドレスで連携") {
-                        if gmailConnected {
-                            gmailConnected = false
-                        } else {
-                            gmailAddress = trimmedAddress
-                            gmailConnected = true
-                        }
-                    }
-                    .disabled(!gmailConnected && trimmedAddress.isEmpty)
-                }
-
-                Section("状態") {
-                    HStack {
-                        Text("現在")
-                        Spacer()
-                        Text(gmailConnected ? "連携済み" : "未連携")
-                            .foregroundColor(gmailConnected ? .green : .secondary)
-                    }
+            Group {
+                if isLoading {
+                    loadingView
+                } else if messages.isEmpty && errorMessage == nil {
+                    emptyView
+                } else {
+                    messageList
                 }
             }
         }
-        .navigationTitle("Gmail 連携")
+        .navigationTitle("領収書メール")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("閉じる") { dismiss() }
+                Button {
+                    Task { await loadMessages() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(isLoading)
             }
         }
+        .alert("取得に失敗しました", isPresented: $showingError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "不明なエラー")
+        }
+        .task { await loadMessages() }
+    }
+
+    // MARK: Sub-views
+
+    private var loadingView: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .progressViewStyle(.circular)
+                .scaleEffect(1.2)
+            Text("メールを取得中...")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    private var emptyView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "envelope.open")
+                .font(.system(size: 44))
+                .foregroundColor(.secondary)
+            Text("領収書メールが見つかりませんでした")
+                .foregroundColor(.secondary)
+            Text("直近30日間のメールを「領収書」「Receipt」等のキーワードで検索しています。")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    private var messageList: some View {
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("領収書メール")
+                        .font(.title3.bold())
+                    Text("直近30日・\(messages.count)件 ／ 金額は自動推定です")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                .padding(.vertical, 2)
+            }
+
+            Section(header: Text("メール一覧").font(.subheadline).fontWeight(.semibold).foregroundColor(.secondary)) {
+                ForEach(messages) { message in
+                    GmailMessageRow(message: message, expenseHistory: expenseHistory) {
+                        saveExpense(from: message)
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+    }
+
+    // MARK: Actions
+
+    private func loadMessages() async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        do {
+            messages = try await GmailAPIService.shared.fetchRecentReceiptEmails()
+        } catch {
+            errorMessage = error.localizedDescription
+            showingError = true
+        }
+    }
+
+    private func saveExpense(from message: GmailMessageSummary) {
+        guard let amount = message.detectedAmount, amount > 0 else { return }
+        let suggestion = ExpenseAutofillPredictor.predict(for: message.subject, from: expenseHistory)
+        let category = suggestion?.category ?? "未分類"
+        let project  = suggestion?.project  ?? "その他"
+        modelContext.insert(
+            ExpenseItem(
+                title: message.subject.prefix(40).description,
+                amount: amount,
+                category: category,
+                project: project,
+                note: "Gmail から取り込み"
+            )
+        )
+        try? modelContext.save()
+    }
+}
+
+// MARK: - GmailMessageRow
+
+private struct GmailMessageRow: View {
+    let message: GmailMessageSummary
+    let expenseHistory: [ExpenseItem]
+    let onSave: () -> Void
+
+    @State private var saved = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "envelope.fill")
+                .foregroundColor(.orange.opacity(0.8))
+                .frame(width: 20)
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(message.subject.isEmpty ? "(件名なし)" : message.subject)
+                    .font(.body.weight(.semibold))
+                    .foregroundColor(.black)
+                    .lineLimit(2)
+
+                Text(message.from)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+
+                Text(message.dateString)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 6) {
+                if let amount = message.detectedAmount {
+                    Text("¥\(Int(amount).formatted())")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundColor(.black)
+                } else {
+                    Text("金額不明")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
+                if message.detectedAmount != nil {
+                    Button {
+                        withAnimation(.spring(response: 0.3)) {
+                            saved = true
+                        }
+                        onSave()
+                    } label: {
+                        Label(saved ? "保存済" : "経費に追加", systemImage: saved ? "checkmark" : "plus.circle")
+                            .font(.caption.bold())
+                            .foregroundColor(saved ? .green : .blue)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(saved)
+                }
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 
@@ -2265,6 +2251,8 @@ struct ReceiptImportView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var drafts: [ReceiptBatchDraft] = [ReceiptBatchDraft()]
+    @State private var showingScanner = false
+    @State private var parsedReceiptForReview: ParsedReceipt?
 
     private let categoryOptions = ExpenseAutofillPredictor.defaultCategories
     private let projectOptions = ExpenseAutofillPredictor.defaultProjects
@@ -2282,6 +2270,24 @@ struct ReceiptImportView: View {
                                 .foregroundColor(.gray)
                         }
                         .padding(.vertical, 2)
+
+                        Button {
+                            showingScanner = true
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "camera.viewfinder")
+                                    .font(.system(size: 18, weight: .semibold))
+                                Text("カメラでスキャン")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.black)
+                            .foregroundColor(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 4)
                     }
 
                     ForEach($drafts) { $draft in
@@ -2326,6 +2332,20 @@ struct ReceiptImportView: View {
                         .fontWeight(.bold)
                         .disabled(validDrafts.isEmpty)
                 }
+            }
+            .fullScreenCover(isPresented: $showingScanner) {
+                ReceiptScannerView(
+                    onParsed: { parsed in
+                        showingScanner = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            parsedReceiptForReview = parsed
+                        }
+                    },
+                    onCancel: { showingScanner = false }
+                )
+            }
+            .sheet(item: $parsedReceiptForReview) { parsed in
+                ScannedReceiptReviewView(parsed: parsed)
             }
         }
     }
