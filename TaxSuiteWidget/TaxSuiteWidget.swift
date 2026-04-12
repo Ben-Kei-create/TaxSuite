@@ -76,35 +76,45 @@ struct TaxSuiteWidgetView: View {
         VStack(alignment: .leading, spacing: 12) {
             widgetHeader
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text("今月の推定手取り")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(currency(entry.snapshot.takeHome))
-                    .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.62)
-                    .foregroundStyle(.primary)
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("今月の推定手取り")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(currency(entry.snapshot.takeHome))
+                        .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.62)
+                        .foregroundStyle(.primary)
 
-                progressBar
+                    progressBar
 
-                HStack(spacing: 8) {
-                    summaryPill(label: "今日の支出", value: currency(entry.snapshot.todayExpensesTotal))
-                    summaryPill(label: "今月の経費", value: currency(entry.snapshot.currentMonthExpenses))
-                    summaryPill(label: "記録数", value: "\(entry.snapshot.todayExpenseCount)件")
+                    VStack(spacing: 8) {
+                        compactMetricRow(label: "今日の支出", value: currency(entry.snapshot.todayExpensesTotal))
+                        compactMetricRow(label: "今月の経費", value: currency(entry.snapshot.currentMonthExpenses))
+                        compactMetricRow(label: "最新", value: entry.snapshot.recentExpenseTitle ?? "未記録")
+                    }
                 }
-            }
-            .padding(14)
-            .background(Color.white.opacity(0.58))
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .background(Color.white.opacity(0.62))
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
 
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                quickAddButton(title: "カフェ", amount: 600, category: "会議費", project: "エンジニア業")
-                quickAddButton(title: "電車", amount: 180, category: "交通費", project: "その他")
-                quickAddButton(title: "昼食", amount: 1000, category: "福利厚生費", project: "その他")
-                quickAddButton(title: "消耗品", amount: 1500, category: "消耗品費", project: "その他")
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("すぐ記録")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 2)
+
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                        quickAddButton(title: "カフェ", amount: 600, category: "会議費", project: "エンジニア業")
+                        quickAddButton(title: "電車", amount: 180, category: "交通費", project: "その他")
+                        quickAddButton(title: "昼食", amount: 1000, category: "福利厚生費", project: "その他")
+                        quickAddButton(title: "消耗品", amount: 1500, category: "消耗品費", project: "その他")
+                    }
+                }
+                .frame(width: 148, alignment: .topLeading)
             }
-            .frame(maxWidth: .infinity)
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -177,13 +187,13 @@ struct TaxSuiteWidgetView: View {
                 project: project
             )
         ) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                 Text(currency(amount))
-                    .font(.system(size: 16, weight: .bold, design: .rounded).monospacedDigit())
+                    .font(.system(size: 15, weight: .bold, design: .rounded).monospacedDigit())
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                 Text(category)
@@ -193,12 +203,33 @@ struct TaxSuiteWidgetView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
-            .padding(.vertical, 12)
-            .background(Color.white.opacity(0.72))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.vertical, 11)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.white.opacity(0.88))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.black.opacity(0.05), lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(.plain)
-        .frame(minHeight: 64)
+        .frame(minHeight: 68)
+    }
+
+    private func compactMetricRow(label: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Text(value)
+                .font(.system(size: 12, weight: .semibold, design: .rounded).monospacedDigit())
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
     }
 
     private func summaryPill(label: String, value: String) -> some View {
