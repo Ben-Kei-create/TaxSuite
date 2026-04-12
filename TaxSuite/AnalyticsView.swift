@@ -95,7 +95,7 @@ struct AnalyticsView: View {
     private var projectData: [CategorySum] {
         Dictionary(grouping: filteredExpenses) {
             let p = $0.project.trimmingCharacters(in: .whitespacesAndNewlines)
-            return p.isEmpty ? "その他" : p
+            return p.isEmpty ? TaxSuiteWidgetStore.fallbackProjectName() : p
         }
         .map { name, items in
             CategorySum(

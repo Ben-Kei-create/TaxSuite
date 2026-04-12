@@ -10,6 +10,7 @@ nonisolated enum TaxSuiteWidgetSupport {
     static let appGroupID = "group.com.fumiakiMogi777.TaxSuite"
     static let snapshotKey = "taxsuite_widget_snapshot_v1"
     static let defaultTaxRate = 0.2
+    static let defaultProjectNames = ["メイン業", "副業", "その他"]
 }
 
 nonisolated struct TaxSuiteWidgetSnapshot: Codable, Equatable {
@@ -38,12 +39,15 @@ nonisolated struct WidgetButtonSlot: Codable, Equatable, Identifiable {
     var project: String
 
     /// 出荷時デフォルト（既存のハードコード値と完全一致）
-    static let defaultSlots: [WidgetButtonSlot] = [
-        WidgetButtonSlot(id: 0, title: "カフェ",  amount: 600,  category: "会議費",     project: "エンジニア業"),
-        WidgetButtonSlot(id: 1, title: "電車",    amount: 180,  category: "交通費",     project: "その他"),
-        WidgetButtonSlot(id: 2, title: "昼食",    amount: 1000, category: "福利厚生費", project: "その他"),
-        WidgetButtonSlot(id: 3, title: "消耗品",  amount: 1500, category: "消耗品費",   project: "その他")
-    ]
+    static var defaultSlots: [WidgetButtonSlot] {
+        let projectNames = TaxSuiteWidgetStore.loadProjectNames()
+        return [
+            WidgetButtonSlot(id: 0, title: "カフェ",  amount: 600,  category: "会議費",     project: projectNames[0]),
+            WidgetButtonSlot(id: 1, title: "電車",    amount: 180,  category: "交通費",     project: projectNames[2]),
+            WidgetButtonSlot(id: 2, title: "昼食",    amount: 1000, category: "福利厚生費", project: projectNames[2]),
+            WidgetButtonSlot(id: 3, title: "消耗品",  amount: 1500, category: "消耗品費",   project: projectNames[2])
+        ]
+    }
 }
 
 nonisolated struct TaxSuiteQuickExpenseAction: Codable, Equatable, Identifiable {
@@ -119,6 +123,60 @@ nonisolated enum TaxSuiteWidgetStore {
         "taxsuite_widget_button_slots_v1"
     }
 
+    private nonisolated static var projectNamesKey: String {
+        "taxsuite_project_names_v1"
+    }
+
+    nonisolated static func loadProjectNames() -> [String] {
+        let storedNames = sharedDefaults.stringArray(forKey: projectNamesKey) ?? TaxSuiteWidgetSupport.defaultProjectNames
+        return normalizedProjectNames(storedNames)
+    }
+
+    @discardableResult
+    nonisolated static func saveProjectNames(_ names: [String]) -> [String] {
+        let normalized = normalizedProjectNames(names)
+        sharedDefaults.set(normalized, forKey: projectNamesKey)
+        reloadTimelines()
+        return normalized
+    }
+
+    nonisolated static func projectNameOptions(including extras: [String] = []) -> [String] {
+        var options = loadProjectNames()
+        var seen = Set(options.map(normalizedProjectLookupKey))
+
+        for extra in extras {
+            let trimmed = extra.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let key = normalizedProjectLookupKey(trimmed)
+            guard seen.insert(key).inserted else { continue }
+            options.append(trimmed)
+        }
+
+        return options
+    }
+
+    nonisolated static func primaryProjectName() -> String {
+        loadProjectNames()[0]
+    }
+
+    nonisolated static func secondaryProjectName() -> String {
+        loadProjectNames()[1]
+    }
+
+    nonisolated static func fallbackProjectName() -> String {
+        loadProjectNames()[2]
+    }
+
+    nonisolated static func sanitizeProjectName(_ name: String, fallbackIndex: Int = 2) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            let names = loadProjectNames()
+            let index = min(max(fallbackIndex, 0), names.count - 1)
+            return names[index]
+        }
+        return trimmed
+    }
+
     /// 4 つのスロット設定を App Group に保存し、ウィジェットのタイムラインを即時リロードする。
     nonisolated static func saveButtonSlots(_ slots: [WidgetButtonSlot]) {
         let encoder = JSONEncoder()
@@ -150,6 +208,42 @@ nonisolated enum TaxSuiteWidgetStore {
 
         guard let data = try? encoder.encode(actions) else { return }
         sharedDefaults.set(data, forKey: pendingQuickExpenseKey)
+    }
+
+    private nonisolated static func normalizedProjectNames(_ names: [String]) -> [String] {
+        let defaults = TaxSuiteWidgetSupport.defaultProjectNames
+        var normalized: [String] = []
+        var seen = Set<String>()
+
+        for index in defaults.indices {
+            let rawValue = names.indices.contains(index) ? names[index] : ""
+            let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            let fallback = defaults[index]
+            let preferred = trimmed.isEmpty ? fallback : trimmed
+            let preferredKey = normalizedProjectLookupKey(preferred)
+
+            if seen.insert(preferredKey).inserted {
+                normalized.append(preferred)
+                continue
+            }
+
+            let fallbackKey = normalizedProjectLookupKey(fallback)
+            if seen.insert(fallbackKey).inserted {
+                normalized.append(fallback)
+            } else {
+                let generated = "プロジェクト\(index + 1)"
+                normalized.append(generated)
+                seen.insert(normalizedProjectLookupKey(generated))
+            }
+        }
+
+        return normalized
+    }
+
+    private nonisolated static func normalizedProjectLookupKey(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: Locale(identifier: "ja_JP"))
     }
 
     private nonisolated static func emptySnapshot(for date: Date) -> TaxSuiteWidgetSnapshot {

@@ -142,11 +142,12 @@ struct DashboardView: View {
             return Array(templates.prefix(4))
         }
 
+        let projectNames = TaxSuiteWidgetStore.loadProjectNames()
         let fallback = [
-            QuickExpenseTemplate(id: "default-train",    title: "電車",   amount: 180,  category: "交通費",    project: "その他",      note: ""),
-            QuickExpenseTemplate(id: "default-cafe",     title: "カフェ", amount: 600,  category: "会議費",    project: "エンジニア業", note: ""),
-            QuickExpenseTemplate(id: "default-lunch",    title: "昼食",   amount: 1000, category: "福利厚生費", project: "その他",      note: ""),
-            QuickExpenseTemplate(id: "default-supplies", title: "消耗品", amount: 1500, category: "消耗品費",  project: "その他",      note: "")
+            QuickExpenseTemplate(id: "default-train",    title: "電車",   amount: 180,  category: "交通費",    project: projectNames[2], note: ""),
+            QuickExpenseTemplate(id: "default-cafe",     title: "カフェ", amount: 600,  category: "会議費",    project: projectNames[0], note: ""),
+            QuickExpenseTemplate(id: "default-lunch",    title: "昼食",   amount: 1000, category: "福利厚生費", project: projectNames[2], note: ""),
+            QuickExpenseTemplate(id: "default-supplies", title: "消耗品", amount: 1500, category: "消耗品費",  project: projectNames[2], note: "")
         ]
 
         let existingTitles = Set(templates.map { $0.title.lowercased() })
@@ -500,9 +501,11 @@ struct IncomeEditView: View {
     @State private var title: String = ""
     @State private var amountText: String = ""
     @State private var selectedDate: Date = Date()
-    @State private var project: String = "エンジニア業"
+    @State private var project: String = TaxSuiteWidgetStore.primaryProjectName()
 
-    private let projects = ["エンジニア業", "講師業", "その他"]
+    private var projects: [String] {
+        TaxSuiteWidgetStore.projectNameOptions(including: [project])
+    }
 
     var body: some View {
         NavigationStack {
@@ -537,6 +540,9 @@ struct IncomeEditView: View {
             }
             .navigationTitle("売上を追加")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                project = TaxSuiteWidgetStore.sanitizeProjectName(project, fallbackIndex: 0)
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("キャンセル") { dismiss() }
@@ -569,7 +575,7 @@ struct ExpenseEditView: View {
     @State private var amountText: String = ""
     @State private var selectedDate: Date = Date()
     @State private var category: String = "未分類"
-    @State private var project: String = "その他"
+    @State private var project: String = TaxSuiteWidgetStore.fallbackProjectName()
     @State private var businessRatio: Double = 1.0
     @State private var note: String = ""
     @State private var suggestion: ExpenseAutofillSuggestion?
@@ -748,6 +754,7 @@ struct ExpenseEditView: View {
             amountText = initialAmount
             selectedDate = Date()
             note = ""
+            project = TaxSuiteWidgetStore.fallbackProjectName()
             applySuggestion(for: initialTitle)
         }
     }
@@ -787,7 +794,7 @@ struct ExpenseEditView: View {
                 category = "未分類"
             }
             if !hasManualProjectOverride {
-                project = "その他"
+                project = TaxSuiteWidgetStore.fallbackProjectName()
             }
             return
         }
@@ -1725,6 +1732,7 @@ struct SettingsView: View {
     @State private var exportFile: ExportFile?
     @State private var exportErrorMessage: String?
     @State private var selectedExportFormat: ExportFormat = .standard
+    @State private var projectNameDrafts = TaxSuiteWidgetStore.loadProjectNames()
     // Google Auth の状態を監視（@Observable singleton）
     @State private var authService = GoogleAuthService.shared
 
@@ -1762,6 +1770,20 @@ struct SettingsView: View {
                                 Text("30%").tag(0.3)
                             }
                             .tint(.black)
+                        }
+                    }
+                    Section(
+                        header: Text("プロジェクト設定"),
+                        footer: Text("3つまで自由に変更できます。空欄は「メイン業 / 副業 / その他」に戻ります。")
+                    ) {
+                        ForEach(projectNameDrafts.indices, id: \.self) { index in
+                            TextField("プロジェクト\(index + 1)", text: Binding(
+                                get: { projectNameDrafts[index] },
+                                set: { projectNameDrafts[index] = $0 }
+                            ))
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .onSubmit(saveProjectNames)
                         }
                     }
                     Section(header: Text("分析")) {
@@ -1918,6 +1940,10 @@ struct SettingsView: View {
             } message: {
                 Text(exportErrorMessage ?? "不明なエラーが発生しました。")
             }
+            .onAppear {
+                projectNameDrafts = TaxSuiteWidgetStore.loadProjectNames()
+            }
+            .onDisappear(perform: saveProjectNames)
         }
     }
 
@@ -1928,6 +1954,10 @@ struct SettingsView: View {
         } catch {
             exportErrorMessage = error.localizedDescription
         }
+    }
+
+    private func saveProjectNames() {
+        projectNameDrafts = TaxSuiteWidgetStore.saveProjectNames(projectNameDrafts)
     }
 }
 
@@ -2030,10 +2060,12 @@ struct RecurringExpenseEditView: View {
 
     @State private var title: String = ""
     @State private var amountText: String = ""
-    @State private var project: String = "その他"
+    @State private var project: String = TaxSuiteWidgetStore.fallbackProjectName()
     @State private var dayOfMonth: Int = 1
 
-    private let projects = ["エンジニア業", "講師業", "その他"]
+    private var projects: [String] {
+        TaxSuiteWidgetStore.projectNameOptions(including: recurringExpense.map { [$0.project] } ?? [project])
+    }
 
     var body: some View {
         NavigationStack {
@@ -2076,7 +2108,10 @@ struct RecurringExpenseEditView: View {
                 }
             }
             .onAppear {
-                guard let recurringExpense else { return }
+                guard let recurringExpense else {
+                    project = TaxSuiteWidgetStore.fallbackProjectName()
+                    return
+                }
                 title = recurringExpense.title
                 amountText = String(Int(recurringExpense.amount))
                 project = recurringExpense.project
@@ -2333,7 +2368,7 @@ struct GmailReceiptInboxView: View {
         guard let amount = message.detectedAmount, amount > 0 else { return }
         let suggestion = ExpenseAutofillPredictor.predict(for: message.subject, from: expenseHistory)
         let category = suggestion?.category ?? "未分類"
-        let project  = suggestion?.project  ?? "その他"
+        let project  = suggestion?.project  ?? TaxSuiteWidgetStore.fallbackProjectName()
         modelContext.insert(
             ExpenseItem(
                 title: message.subject.prefix(40).description,
@@ -2422,7 +2457,9 @@ struct ReceiptImportView: View {
     @State private var parsedReceiptForReview: ParsedReceipt?
 
     private let categoryOptions = ExpenseAutofillPredictor.defaultCategories
-    private let projectOptions = ExpenseAutofillPredictor.defaultProjects
+    private var projectOptions: [String] {
+        TaxSuiteWidgetStore.projectNameOptions(including: drafts.map(\.project))
+    }
 
     var body: some View {
         NavigationStack {
@@ -2729,7 +2766,9 @@ struct WidgetSlotEditorView: View {
     @State private var amountText: String = ""
 
     private let categoryOptions = ExpenseAutofillPredictor.defaultCategories
-    private let projectOptions  = ExpenseAutofillPredictor.defaultProjects
+    private var projectOptions: [String] {
+        TaxSuiteWidgetStore.projectNameOptions(including: [slot.project])
+    }
 
     var body: some View {
         TaxSuiteScreenSurface {

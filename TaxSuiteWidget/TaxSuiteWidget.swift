@@ -323,10 +323,10 @@ private extension TaxSuiteWidgetSnapshot {
         date: .now,
         snapshot: .preview,
         buttonSlots: [
-            WidgetButtonSlot(id: 0, title: "スタバ",   amount: 750,  category: "会議費",     project: "エンジニア業"),
-            WidgetButtonSlot(id: 1, title: "新幹線",   amount: 6600, category: "交通費",     project: "講師業"),
-            WidgetButtonSlot(id: 2, title: "AWS",      amount: 3200, category: "通信費",     project: "エンジニア業"),
-            WidgetButtonSlot(id: 3, title: "書籍",     amount: 2200, category: "消耗品費",   project: "その他")
+            WidgetButtonSlot(id: 0, title: "スタバ",   amount: 750,  category: "会議費",     project: TaxSuiteWidgetSupport.defaultProjectNames[0]),
+            WidgetButtonSlot(id: 1, title: "新幹線",   amount: 6600, category: "交通費",     project: TaxSuiteWidgetSupport.defaultProjectNames[1]),
+            WidgetButtonSlot(id: 2, title: "AWS",      amount: 3200, category: "通信費",     project: TaxSuiteWidgetSupport.defaultProjectNames[0]),
+            WidgetButtonSlot(id: 3, title: "書籍",     amount: 2200, category: "消耗品費",   project: TaxSuiteWidgetSupport.defaultProjectNames[2])
         ]
     )
 }

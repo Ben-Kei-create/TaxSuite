@@ -19,7 +19,7 @@ final class ExpenseItem {
         title: String,
         amount: Double,
         category: String = "未分類",
-        project: String = "その他",
+        project: String = TaxSuiteWidgetStore.fallbackProjectName(),
         businessRatio: Double = 1.0,
         note: String = "",
         recurringExpenseID: String? = nil
@@ -44,7 +44,7 @@ final class IncomeItem {
     var amount: Double
     var project: String
 
-    init(timestamp: Date = Date(), title: String, amount: Double, project: String = "その他") {
+    init(timestamp: Date = Date(), title: String, amount: Double, project: String = TaxSuiteWidgetStore.fallbackProjectName()) {
         self.timestamp = timestamp
         self.title = title
         self.amount = amount
@@ -203,7 +203,7 @@ enum ExpenseAutofillPredictor {
         "固定費"
     ]
 
-    static let defaultProjects = ["エンジニア業", "講師業", "その他"]
+    static var defaultProjects: [String] { TaxSuiteWidgetStore.loadProjectNames() }
 
     private static let keywordRules: [(keywords: [String], category: String)] = [
         (["電車", "タクシー", "新幹線", "バス", "駐車", "ガソリン"], "交通費"),
@@ -219,7 +219,7 @@ enum ExpenseAutofillPredictor {
     }
 
     static func projectOptions(from history: [ExpenseItem]) -> [String] {
-        mergedOptions(defaultProjects, history.map(\.project))
+        TaxSuiteWidgetStore.projectNameOptions(including: history.map(\.project))
     }
 
     static func predict(for title: String, from history: [ExpenseItem]) -> ExpenseAutofillSuggestion? {
@@ -883,6 +883,6 @@ struct ReceiptBatchDraft: Identifiable {
     var title: String = ""
     var amountText: String = ""
     var category: String = "未分類"
-    var project: String = "その他"
+    var project: String = TaxSuiteWidgetStore.fallbackProjectName()
     var note: String = ""
 }

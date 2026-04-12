@@ -309,7 +309,9 @@ struct ScannedReceiptReviewView: View {
     @State private var isApplyingSuggestion = false
 
     private let categoryOptions = ExpenseAutofillPredictor.defaultCategories
-    private let projectOptions = ExpenseAutofillPredictor.defaultProjects
+    private var projectOptions: [String] {
+        TaxSuiteWidgetStore.projectNameOptions(including: expenseHistory.map(\.project) + [project])
+    }
 
     init(parsed: ParsedReceipt) {
         self.parsed = parsed
@@ -317,7 +319,7 @@ struct ScannedReceiptReviewView: View {
         _amountText = State(initialValue: parsed.amount.map { String(Int($0)) } ?? "")
         _date = State(initialValue: parsed.date ?? Date())
         _category = State(initialValue: "未分類")
-        _project = State(initialValue: "その他")
+        _project = State(initialValue: TaxSuiteWidgetStore.fallbackProjectName())
         _businessRatio = State(initialValue: 1.0)
         _note = State(initialValue: "")
     }
@@ -457,7 +459,7 @@ struct ScannedReceiptReviewView: View {
 
         if trimmed.isEmpty {
             if !hasManualCategoryOverride { category = "未分類" }
-            if !hasManualProjectOverride { project = "その他" }
+            if !hasManualProjectOverride { project = TaxSuiteWidgetStore.fallbackProjectName() }
             return
         }
 
