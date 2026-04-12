@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		009EBD8620CE7B3396F91006 /* WidgetQuickExpenseIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D3D8F91E04A03A6D07B622 /* WidgetQuickExpenseIntent.swift */; };
 		289A41B2BBBB93C6CD5E4BAA /* TaxSuiteWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A553D8E1749CDE193DB2662D /* TaxSuiteWidget.appex */; };
 		40C83A7047BB3F58E5923814 /* TaxSuiteWidgetSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6AAF4717E08BC49A9267C77 /* TaxSuiteWidgetSupport.swift */; };
 		47CD190857736EAE6AB3A8BF /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 35B664418527FB9786991321 /* Foundation.framework */; };
@@ -45,6 +46,7 @@
 		A50A3CD02F895EB500618AFA /* TaxSuite.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TaxSuite.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A553D8E1749CDE193DB2662D /* TaxSuiteWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TaxSuiteWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D15C820DB4E60A69A7F4AC8E /* TaxSuiteWidget.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = TaxSuiteWidget.entitlements; sourceTree = "<group>"; };
+		D1D3D8F91E04A03A6D07B622 /* WidgetQuickExpenseIntent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetQuickExpenseIntent.swift; sourceTree = "<group>"; };
 		D6AAF4717E08BC49A9267C77 /* TaxSuiteWidgetSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TaxSuiteWidgetSupport.swift; path = ../TaxSuite/TaxSuiteWidgetSupport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -104,8 +106,8 @@
 				1908694D9FC574151FB7D8CC /* Info.plist */,
 				D15C820DB4E60A69A7F4AC8E /* TaxSuiteWidget.entitlements */,
 				D6AAF4717E08BC49A9267C77 /* TaxSuiteWidgetSupport.swift */,
+				D1D3D8F91E04A03A6D07B622 /* WidgetQuickExpenseIntent.swift */,
 			);
-			name = TaxSuiteWidget;
 			path = TaxSuiteWidget;
 			sourceTree = "<group>";
 		};
@@ -243,6 +245,7 @@
 			files = (
 				95754B1EBC877DB921CD2897 /* TaxSuiteWidget.swift in Sources */,
 				40C83A7047BB3F58E5923814 /* TaxSuiteWidgetSupport.swift in Sources */,
+				009EBD8620CE7B3396F91006 /* WidgetQuickExpenseIntent.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

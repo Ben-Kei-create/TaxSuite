@@ -11,15 +11,17 @@ final class ExpenseItem {
     var category: String
     var project: String
     var businessRatio: Double
+    var note: String
     var recurringExpenseID: String?
 
-    init(timestamp: Date = Date(), title: String, amount: Double, category: String = "未分類", project: String = "その他", businessRatio: Double = 1.0, recurringExpenseID: String? = nil) {
+    init(timestamp: Date = Date(), title: String, amount: Double, category: String = "未分類", project: String = "その他", businessRatio: Double = 1.0, note: String = "", recurringExpenseID: String? = nil) {
         self.timestamp = timestamp
         self.title = title
         self.amount = amount
         self.category = category
         self.project = project
         self.businessRatio = businessRatio
+        self.note = note
         self.recurringExpenseID = recurringExpenseID
     }
     var effectiveAmount: Double { amount * businessRatio }
@@ -140,6 +142,10 @@ enum AccountingCategoryMapper {
 extension ExpenseItem {
     nonisolated var accountingCategory: String {
         AccountingCategoryMapper.category(forTitle: title, userCategory: category)
+    }
+
+    nonisolated var isSubscription: Bool {
+        recurringExpenseID != nil
     }
 }
 
@@ -311,6 +317,71 @@ enum ExpenseAutofillPredictor {
     }
 }
 
+enum AnalyticsRange: String, CaseIterable, Identifiable {
+    case day = "日"
+    case week = "週"
+    case month = "月"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .day:
+            return "今日"
+        case .week:
+            return "今週"
+        case .month:
+            return "今月"
+        }
+    }
+
+    func contains(_ date: Date, reference: Date, calendar: Calendar = .current) -> Bool {
+        switch self {
+        case .day:
+            return calendar.isDate(date, inSameDayAs: reference)
+        case .week:
+            return calendar.isDate(date, equalTo: reference, toGranularity: .weekOfYear)
+        case .month:
+            return calendar.isDate(date, equalTo: reference, toGranularity: .month)
+        }
+    }
+}
+
+enum AnalyticsChartStyle: String, CaseIterable, Identifiable {
+    case bar = "棒グラフ"
+    case donut = "ドーナツ"
+
+    var id: String { rawValue }
+}
+
+struct QuickExpenseTemplate: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let amount: Double
+    let category: String
+    let project: String
+    let note: String
+    let subtitle: String
+}
+
+enum ExpenseCommentTemplate {
+    private static let samples: [String: [String]] = [
+        "未分類": ["仕事用の支出", "あとで分類を見直す用メモ"],
+        "交通費": ["打ち合わせ先への移動", "現地訪問の往復分"],
+        "会議費": ["打ち合わせ用のドリンク代", "商談前のカフェ利用"],
+        "福利厚生費": ["作業中の昼食代", "長時間作業時の軽食"],
+        "消耗品費": ["仕事用の備品補充", "デスク周りの消耗品購入"],
+        "通信費": ["業務ツールの月額利用", "サーバー / 回線の利用料"],
+        "ソフトウェア": ["制作ツールのサブスク", "業務アプリの利用料"],
+        "外注費": ["制作の外部依頼分", "サポート業務の委託費"],
+        "固定費": ["毎月の定額支出", "継続契約中の費用メモ"]
+    ]
+
+    static func samples(for category: String) -> [String] {
+        samples[category] ?? samples["未分類"] ?? []
+    }
+}
+
 extension View {
     func taxSuiteAmountStyle(size: CGFloat, weight: Font.Weight = .semibold, tracking: CGFloat = 0) -> some View {
         self
@@ -335,6 +406,36 @@ extension View {
             .font(.subheadline)
             .fontWeight(.semibold)
             .foregroundColor(.secondary)
+    }
+}
+
+struct TaxSuiteBannerHeader: View {
+    var body: some View {
+        AdBannerView()
+            .frame(height: 50)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 16)
+            .padding(.top, 6)
+            .padding(.bottom, 2)
+    }
+}
+
+struct TaxSuiteScreenSurface<Content: View>: View {
+    let content: () -> Content
+
+    init(@ViewBuilder content: @escaping () -> Content) {
+        self.content = content
+    }
+
+    var body: some View {
+        ZStack {
+            Color(white: 0.97).ignoresSafeArea()
+
+            VStack(spacing: 8) {
+                TaxSuiteBannerHeader()
+                content()
+            }
+        }
     }
 }
 
@@ -623,6 +724,7 @@ struct CSVExporter {
                 "project",
                 "business_ratio",
                 "effective_amount",
+                "note",
                 "is_recurring_auto"
             ].joined(separator: ",")
         ]
@@ -637,6 +739,7 @@ struct CSVExporter {
                 csvField(expense.project),
                 csvField(String(format: "%.2f", expense.businessRatio)),
                 csvField(String(Int(expense.effectiveAmount))),
+                csvField(expense.note),
                 csvField(expense.recurringExpenseID == nil ? "false" : "true")
             ].joined(separator: ","))
         }
@@ -651,6 +754,7 @@ struct CSVExporter {
                 csvField(income.project),
                 csvField("1.00"),
                 csvField(String(Int(income.amount))),
+                csvField(""),
                 csvField("false")
             ].joined(separator: ","))
         }
@@ -662,13 +766,16 @@ struct CSVExporter {
         var rows: [(Date, String)] = []
 
         for expense in expenses {
+            let memo = expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? expense.title
+                : "\(expense.title) / \(expense.note)"
             let line = [
                 "支出",
                 dateString(from: expense.timestamp),
                 csvField(expense.accountingCategory),
                 csvField(String(Int(expense.effectiveAmount))),
                 csvField(expense.project),
-                csvField(expense.title)
+                csvField(memo)
             ].joined(separator: ",")
             rows.append((expense.timestamp, line))
         }
@@ -694,7 +801,8 @@ struct CSVExporter {
 
         for expense in expenses {
             let amount = String(Int(expense.effectiveAmount))
-            let memo = "\(expense.title) [\(expense.project)]"
+            let noteSuffix = expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : " / \(expense.note)"
+            let memo = "\(expense.title) [\(expense.project)]\(noteSuffix)"
             let line = [
                 dateString(from: expense.timestamp),
                 csvField(expense.accountingCategory),
@@ -842,14 +950,38 @@ struct ContentView: View {
         }
         .accentColor(.black)
         .task {
+            processPendingWidgetExpenses()
             checkAndAddRecurringExpenses()
             refreshWidgetSnapshot()
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
+            processPendingWidgetExpenses()
             checkAndAddRecurringExpenses()
             refreshWidgetSnapshot()
         }
+    }
+
+    @MainActor
+    private func processPendingWidgetExpenses() {
+        let actions = TaxSuiteWidgetStore.consumePendingQuickExpenses()
+        guard !actions.isEmpty else { return }
+
+        for action in actions {
+            modelContext.insert(
+                ExpenseItem(
+                    timestamp: action.createdAt,
+                    title: action.title,
+                    amount: action.amount,
+                    category: action.category,
+                    project: action.project,
+                    businessRatio: 1.0,
+                    note: action.note
+                )
+            )
+        }
+
+        try? modelContext.save()
     }
 
     @MainActor
@@ -888,6 +1020,7 @@ struct ContentView: View {
                 category: "固定費",
                 project: recurring.project,
                 businessRatio: 1.0,
+                note: "固定費の自動入力",
                 recurringExpenseID: recurringIDString
             )
             modelContext.insert(autoExpense)
@@ -922,6 +1055,7 @@ struct DashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var allExpenses: [ExpenseItem]
     @Query private var allIncomes: [IncomeItem]
+    @AppStorage("isTaxSuiteProEnabled") private var isTaxSuiteProEnabled = false
     
     @Query(filter: DashboardView.todayPredicate, sort: \ExpenseItem.timestamp, order: .reverse)
     private var todayExpenses: [ExpenseItem]
@@ -931,6 +1065,8 @@ struct DashboardView: View {
     @State private var showingExpenseSheet = false
     @State private var showingIncomeSheet = false
     @State private var editingExpense: ExpenseItem?
+    @State private var showingReceiptImporter = false
+    @State private var showingProModal = false
     
     @State private var draftTitle: String = ""
     @State private var draftAmount: String = ""
@@ -949,6 +1085,51 @@ struct DashboardView: View {
     
     var estimatedTax: Double { TaxCalculator.calculateTax(revenue: currentMonthRevenue, expenses: currentMonthExpense, taxRate: taxRate) }
     var takeHome: Double { TaxCalculator.calculateTakeHome(revenue: currentMonthRevenue, expenses: currentMonthExpense, taxRate: taxRate) }
+
+    var quickExpenseTemplates: [QuickExpenseTemplate] {
+        var templates: [QuickExpenseTemplate] = []
+        var seen = Set<String>()
+
+        for expense in allExpenses.sorted(by: { $0.timestamp > $1.timestamp }) {
+            let baseTitle = expense.title
+                .replacingOccurrences(of: " (自動)", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !baseTitle.isEmpty else { continue }
+
+            let key = [baseTitle, expense.category, expense.project, String(Int(expense.amount.rounded()))].joined(separator: "|")
+            guard seen.insert(key).inserted else { continue }
+
+            templates.append(
+                QuickExpenseTemplate(
+                    id: key,
+                    title: baseTitle,
+                    amount: expense.amount,
+                    category: expense.category,
+                    project: expense.project,
+                    note: expense.note,
+                    subtitle: expense.category == "未分類" ? expense.project : "\(expense.category)・\(expense.project)"
+                )
+            )
+
+            if templates.count == 4 {
+                return templates
+            }
+        }
+
+        let fallback = [
+            QuickExpenseTemplate(id: "default-train", title: "電車", amount: 180, category: "交通費", project: "その他", note: "", subtitle: "交通費・その他"),
+            QuickExpenseTemplate(id: "default-cafe", title: "カフェ", amount: 600, category: "会議費", project: "エンジニア業", note: "", subtitle: "会議費・エンジニア業"),
+            QuickExpenseTemplate(id: "default-lunch", title: "昼食", amount: 1000, category: "福利厚生費", project: "その他", note: "", subtitle: "福利厚生費・その他"),
+            QuickExpenseTemplate(id: "default-supplies", title: "消耗品", amount: 1500, category: "消耗品費", project: "その他", note: "", subtitle: "消耗品費・その他")
+        ]
+
+        for template in fallback where !seen.contains(template.id) {
+            templates.append(template)
+            if templates.count == 4 { break }
+        }
+
+        return templates
+    }
 
     var widgetSnapshotFingerprint: String {
         let latestExpense = allExpenses.map(\.timestamp).max()?.timeIntervalSince1970 ?? 0
@@ -979,38 +1160,62 @@ struct DashboardView: View {
     
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottomTrailing) {
-                Color(white: 0.97).ignoresSafeArea()
-                
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 32) {
-                        mainMetricCard
-                        adBannerSection
-                        quickAddSection
-                        todayExpensesSection
-                        Spacer().frame(height: 96)
-                    }.padding(.vertical, 24)
+            TaxSuiteScreenSurface {
+                ZStack(alignment: .bottom) {
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 32) {
+                            mainMetricCard
+                            quickAddSection
+                            todayExpensesSection
+                            Spacer().frame(height: 112)
+                        }
+                        .padding(.top, 6)
+                        .padding(.bottom, 24)
+                    }
+
+                    HStack {
+                        Button {
+                            if isTaxSuiteProEnabled {
+                                showingReceiptImporter = true
+                            } else {
+                                showingProModal = true
+                            }
+                        } label: {
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 60, height: 60)
+                                .background(Color.black)
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.22), radius: 6, x: 0, y: 4)
+                        }
+
+                        Spacer()
+
+                        Menu {
+                            Button(action: { showingIncomeSheet = true }) { Label("売上を記録", systemImage: "arrow.down.circle.fill") }
+                            Button(action: { openNewExpenseSheet() }) { Label("経費を記録", systemImage: "arrow.up.circle.fill") }
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 60, height: 60)
+                                .background(Color.black)
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.22), radius: 6, x: 0, y: 4)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 16)
                 }
-                
-                Menu {
-                    Button(action: { showingIncomeSheet = true }) { Label("売上を記録", systemImage: "arrow.down.circle.fill") }
-                    Button(action: { openNewExpenseSheet() }) { Label("経費を記録", systemImage: "arrow.up.circle.fill") }
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 60, height: 60)
-                        .background(Color.black)
-                        .clipShape(Circle())
-                        .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 4)
-                }
-                .padding(.trailing, 20).padding(.bottom, 20)
             }
             .navigationTitle("ダッシュボード")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingExpenseSheet) { ExpenseEditView(expense: nil, initialTitle: draftTitle, initialAmount: draftAmount) }
             .sheet(isPresented: $showingIncomeSheet) { IncomeEditView() }
             .sheet(item: $editingExpense) { expense in ExpenseEditView(expense: expense) }
+            .sheet(isPresented: $showingReceiptImporter) { ReceiptImportView() }
+            .sheet(isPresented: $showingProModal) { ProUpgradeView() }
             .task {
                 syncWidgetSnapshot()
             }
@@ -1052,45 +1257,30 @@ struct DashboardView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private var adBannerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("スポンサー")
-                .font(.caption)
-                .foregroundColor(.gray)
-                .padding(.horizontal, 24)
-
-            HStack {
-                Spacer()
-                AdBannerView()
-                    .frame(height: 50)
-                Spacer()
-            }
-            .padding(.vertical, 12)
-            .background(Color.white)
-            .cornerRadius(18)
-            .shadow(color: .black.opacity(0.03), radius: 8, x: 0, y: 4)
-            .padding(.horizontal, 20)
-        }
-    }
-    
     private var quickAddSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("クイック入力")
+                Text("最近よく使う経費")
                     .taxSuiteSectionHeadingStyle()
-                Text("長押しで詳細")
+                Text("タップで再追加、長押しで編集")
                     .font(.caption)
                     .foregroundColor(.gray)
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 4)
 
-            HStack(spacing: 12) {
-                QuickAddButton(icon: "🚃", title: "電車", amount: 180, onTap: { addExpense("電車", 180, "交通費") }, onLongPress: { openDraftSheet(title: "電車", amount: 180) })
-                QuickAddButton(icon: "☕️", title: "カフェ", amount: 600, onTap: { addExpense("カフェ", 600, "会議費") }, onLongPress: { openDraftSheet(title: "カフェ", amount: 600) })
-                QuickAddButton(icon: "🍱", title: "昼食", amount: 1000, onTap: { addExpense("昼食", 1000, "福利厚生費") }, onLongPress: { openDraftSheet(title: "昼食", amount: 1000) })
-                QuickAddButton(icon: "🖊", title: "消耗品", amount: 1500, onTap: { addExpense("消耗品", 1500, "消耗品費") }, onLongPress: { openDraftSheet(title: "消耗品", amount: 1500) })
-            }.padding(.horizontal, 20)
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                ForEach(quickExpenseTemplates) { template in
+                    QuickAddButton(
+                        title: template.title,
+                        subtitle: template.subtitle,
+                        amount: template.amount,
+                        onTap: { addExpense(template) },
+                        onLongPress: { openDraftSheet(title: template.title, amount: template.amount) }
+                    )
+                }
+            }
+            .padding(.horizontal, 20)
         }
     }
     
@@ -1108,6 +1298,12 @@ struct DashboardView: View {
                             HStack {
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text(expense.title).font(.body).bold().foregroundColor(.black)
+                                    if !expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        Text(expense.note)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(2)
+                                    }
                                     HStack {
                                         Text(expense.project).font(.caption2).foregroundColor(.gray).padding(.horizontal, 8).padding(.vertical, 4).background(Color.gray.opacity(0.1)).cornerRadius(6)
                                         if expense.businessRatio < 1.0 { Text("事業割合: \(Int(expense.businessRatio * 100))%").font(.caption2).foregroundColor(.orange).padding(.horizontal, 8).padding(.vertical, 4).background(Color.orange.opacity(0.1)).cornerRadius(6) }
@@ -1133,9 +1329,17 @@ struct DashboardView: View {
         }
     }
     
-    private func addExpense(_ title: String, _ amount: Double, _ category: String) {
+    private func addExpense(_ template: QuickExpenseTemplate) {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            modelContext.insert(ExpenseItem(title: title, amount: amount, category: category, project: "その他", businessRatio: 1.0))
+            modelContext.insert(
+                ExpenseItem(
+                    title: template.title,
+                    amount: template.amount,
+                    category: template.category,
+                    project: template.project,
+                    businessRatio: 1.0
+                )
+            )
             let generator = UIImpactFeedbackGenerator(style: .medium); generator.impactOccurred()
         }
     }
@@ -1151,16 +1355,32 @@ struct DashboardView: View {
 }
 
 struct QuickAddButton: View {
-    var icon: String; var title: String; var amount: Double; var onTap: () -> Void; var onLongPress: () -> Void
+    var title: String
+    var subtitle: String
+    var amount: Double
+    var onTap: () -> Void
+    var onLongPress: () -> Void
+
     var body: some View {
-        VStack(spacing: 8) {
-            Text(icon).font(.title2)
-            Text(title).font(.caption2).foregroundColor(.gray)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.headline)
+                .foregroundColor(.black)
+                .lineLimit(1)
+            Text(subtitle)
+                .font(.caption)
+                .foregroundColor(.gray)
+                .lineLimit(1)
             Text("¥\(Int(amount))")
-                .taxSuiteAmountStyle(size: 12, weight: .bold)
+                .taxSuiteAmountStyle(size: 18, weight: .bold, tracking: -0.2)
                 .foregroundColor(.black)
         }
-        .frame(maxWidth: .infinity).padding(.vertical, 16).background(Color.white).cornerRadius(16).shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 16)
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 3)
         .onTapGesture { onTap() }
         .onLongPressGesture { let g = UIImpactFeedbackGenerator(style: .heavy); g.impactOccurred(); onLongPress() }
     }
@@ -1255,16 +1475,17 @@ struct IncomeEditView: View {
     
     var body: some View {
         NavigationStack {
-            Form {
-                Section(header: Text("案件名")) {
-                    TextField("例：A社Web制作", text: $title)
-                }
-                // 🌟 ウォレットUIを適用
-                Section(header: Text("金額をチャージ入力")) {
-                    WalletChargeInputView(amountText: $amountText)
-                }
-                Section(header: Text("プロジェクト")) {
-                    Picker("プロジェクト", selection: $project) { ForEach(projects, id: \.self) { proj in Text(proj).tag(proj) } }.pickerStyle(.segmented)
+            TaxSuiteScreenSurface {
+                Form {
+                    Section(header: Text("案件名")) {
+                        TextField("例：A社Web制作", text: $title)
+                    }
+                    Section(header: Text("金額をチャージ入力")) {
+                        WalletChargeInputView(amountText: $amountText)
+                    }
+                    Section(header: Text("プロジェクト")) {
+                        Picker("プロジェクト", selection: $project) { ForEach(projects, id: \.self) { proj in Text(proj).tag(proj) } }.pickerStyle(.segmented)
+                    }
                 }
             }
             .navigationTitle("売上を追加").navigationBarTitleDisplayMode(.inline)
@@ -1291,6 +1512,7 @@ struct ExpenseEditView: View {
     @State private var category: String = "未分類"
     @State private var project: String = "その他"
     @State private var businessRatio: Double = 1.0
+    @State private var note: String = ""
     @State private var suggestion: ExpenseAutofillSuggestion?
     @State private var isApplyingSuggestion = false
     @State private var hasManualCategoryOverride = false
@@ -1302,6 +1524,10 @@ struct ExpenseEditView: View {
 
     private var projectOptions: [String] {
         ExpenseAutofillPredictor.projectOptions(from: expenseHistory)
+    }
+
+    private var commentSamples: [String] {
+        ExpenseCommentTemplate.samples(for: category)
     }
 
     private var categoryBinding: Binding<String> {
@@ -1352,37 +1578,61 @@ struct ExpenseEditView: View {
     
     var body: some View {
         NavigationStack {
-            Form {
-                Section(
-                    header: Text("項目名"),
-                    footer: suggestionFooter
-                ) {
-                    TextField("例：タクシー代", text: $title)
-                }
-                // 🌟 ウォレットUIを適用
-                Section(header: Text("金額をチャージ入力")) {
-                    WalletChargeInputView(amountText: $amountText)
-                }
-                Section(header: Text("分類")) {
-                    Picker("カテゴリ", selection: categoryBinding) {
-                        ForEach(categoryOptions, id: \.self) { item in
-                            Text(item).tag(item)
-                        }
+            TaxSuiteScreenSurface {
+                Form {
+                    Section(
+                        header: Text("項目名"),
+                        footer: suggestionFooter
+                    ) {
+                        TextField("例：タクシー代", text: $title)
                     }
-                    .tint(.black)
+                    Section(header: Text("金額をチャージ入力")) {
+                        WalletChargeInputView(amountText: $amountText)
+                    }
+                    Section(header: Text("分類")) {
+                        Picker("カテゴリ", selection: categoryBinding) {
+                            ForEach(categoryOptions, id: \.self) { item in
+                                Text(item).tag(item)
+                            }
+                        }
+                        .tint(.black)
 
-                    Picker("プロジェクト", selection: projectBinding) {
-                        ForEach(projectOptions, id: \.self) { item in
-                            Text(item).tag(item)
+                        Picker("プロジェクト", selection: projectBinding) {
+                            ForEach(projectOptions, id: \.self) { item in
+                                Text(item).tag(item)
+                            }
+                        }
+                        .tint(.black)
+                    }
+                    Section(header: Text("コメント")) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            TextEditor(text: $note)
+                                .frame(minHeight: 92)
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(commentSamples, id: \.self) { sample in
+                                        Button(sample) {
+                                            note = sample
+                                        }
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundColor(.black)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 8)
+                                        .background(Color.black.opacity(0.06))
+                                        .clipShape(Capsule())
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                            }
                         }
                     }
-                    .tint(.black)
-                }
-                Section(header: Text("事業用割合 (家事按分)"), footer: Text("プライベートの支出が含まれる場合、事業の経費とする割合を指定します。")) {
-                    VStack {
-                        HStack { Text("事業用: \(Int(businessRatio * 100))%").fontWeight(.bold); Spacer(); if let amt = Double(amountText) { Text("経費計上額: ¥\(Int(amt * businessRatio))").foregroundColor(.gray) } }
-                        Slider(value: $businessRatio, in: 0...1.0, step: 0.1).tint(.black)
-                    }.padding(.vertical, 8)
+                    Section(header: Text("事業用割合 (家事按分)"), footer: Text("プライベートの支出が含まれる場合、事業の経費とする割合を指定します。")) {
+                        VStack {
+                            HStack { Text("事業用: \(Int(businessRatio * 100))%").fontWeight(.bold); Spacer(); if let amt = Double(amountText) { Text("経費計上額: ¥\(Int(amt * businessRatio))").foregroundColor(.gray) } }
+                            Slider(value: $businessRatio, in: 0...1.0, step: 0.1).tint(.black)
+                        }.padding(.vertical, 8)
+                    }
                 }
             }
             .navigationTitle(expense == nil ? "経費を追加" : "経費を編集").navigationBarTitleDisplayMode(.inline)
@@ -1397,6 +1647,7 @@ struct ExpenseEditView: View {
                             e.category = category
                             e.project = project
                             e.businessRatio = businessRatio
+                            e.note = note
                         } else {
                             modelContext.insert(
                                 ExpenseItem(
@@ -1405,7 +1656,8 @@ struct ExpenseEditView: View {
                                     amount: amount,
                                     category: category,
                                     project: project,
-                                    businessRatio: businessRatio
+                                    businessRatio: businessRatio,
+                                    note: note
                                 )
                             )
                         }
@@ -1420,11 +1672,13 @@ struct ExpenseEditView: View {
                     category = e.category
                     project = e.project
                     businessRatio = e.businessRatio
+                    note = e.note
                     hasManualCategoryOverride = true
                     hasManualProjectOverride = true
                 } else {
                     title = initialTitle
                     amountText = initialAmount
+                    note = ""
                     applySuggestion(for: initialTitle)
                 }
             }
@@ -1482,19 +1736,33 @@ struct CalendarHistoryView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color(white: 0.97).ignoresSafeArea()
+            TaxSuiteScreenSurface {
                 VStack(spacing: 0) {
-                    DatePicker("日付", selection: $selectedDate, displayedComponents: [.date]).datePickerStyle(.graphical).tint(.black).padding().background(Color.white).cornerRadius(15).padding()
+                    DatePicker("日付", selection: $selectedDate, displayedComponents: [.date])
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+                        .tint(.black)
+                        .scaleEffect(0.84)
+                        .frame(height: 248)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 12)
+                        .padding(.top, 2)
+                        .padding(.bottom, 6)
+                        .background(Color.white)
+                        .cornerRadius(18)
+                        .padding(.horizontal, 20)
                     List {
                         Section { NavigationLink(destination: AllHistoryView(editingExpense: $editingExpense)) { HStack { Image(systemName: "list.bullet.rectangle.portrait").foregroundColor(.blue); Text("すべての入力履歴を見る").fontWeight(.bold).foregroundColor(.blue) }.padding(.vertical, 4) } }
                         Section(header: dailyExpenseHeader) {
                             if dailyExpenses.isEmpty { Text("記録はありません").foregroundColor(.gray) }
-                            else { ForEach(dailyExpenses) { expense in Button(action: { editingExpense = expense }) { HStack { VStack(alignment: .leading, spacing: 4) { Text(expense.title).font(.headline).foregroundColor(.black); Text(expense.project).font(.caption).foregroundColor(.gray) }; Spacer(); Text("¥\(Int(expense.effectiveAmount).formatted())").taxSuiteAmountStyle(size: 16, weight: .semibold, tracking: -0.2).foregroundColor(.black) } } } }
+                            else { ForEach(dailyExpenses) { expense in Button(action: { editingExpense = expense }) { HStack { VStack(alignment: .leading, spacing: 4) { Text(expense.title).font(.headline).foregroundColor(.black); Text(expense.project).font(.caption).foregroundColor(.gray); if !expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { Text(expense.note).font(.caption2).foregroundColor(.secondary).lineLimit(2) } }; Spacer(); Text("¥\(Int(expense.effectiveAmount).formatted())").taxSuiteAmountStyle(size: 16, weight: .semibold, tracking: -0.2).foregroundColor(.black) } } } }
                         }
-                    }.listStyle(.insetGrouped)
+                    }
+                    .listStyle(.insetGrouped)
                 }
-            }.navigationTitle("カレンダー").sheet(item: $editingExpense) { expense in ExpenseEditView(expense: expense) }
+            }
+            .navigationTitle("カレンダー")
+            .sheet(item: $editingExpense) { expense in ExpenseEditView(expense: expense) }
         }
     }
 }
@@ -1508,8 +1776,7 @@ struct AllHistoryView: View {
         return dict.sorted { $0.key > $1.key }
     }
     var body: some View {
-        ZStack {
-            Color(white: 0.97).ignoresSafeArea()
+        TaxSuiteScreenSurface {
             VStack(spacing: 0) {
                 Picker("表示モード", selection: $viewMode) { Text("月別まとめ").tag(0); Text("すべて").tag(1) }.pickerStyle(.segmented).padding()
                 List {
@@ -1521,34 +1788,275 @@ struct AllHistoryView: View {
         }.navigationTitle("すべての履歴").navigationBarTitleDisplayMode(.inline)
     }
     private func expenseRow(_ expense: ExpenseItem) -> some View {
-        Button(action: { editingExpense = expense }) { HStack { VStack(alignment: .leading, spacing: 6) { Text(expense.title).font(.headline).foregroundColor(.black); HStack { Text(expense.project).font(.caption2).foregroundColor(.gray).padding(.horizontal, 8).padding(.vertical, 4).background(Color.gray.opacity(0.1)).cornerRadius(6); Text(expense.timestamp, style: .date).font(.caption2).foregroundColor(.gray) } }; Spacer(); Text("¥\(Int(expense.effectiveAmount).formatted())").taxSuiteAmountStyle(size: 17, weight: .semibold, tracking: -0.2).foregroundColor(.black) }.padding(.vertical, 4) }
+        Button(action: { editingExpense = expense }) { HStack { VStack(alignment: .leading, spacing: 6) { Text(expense.title).font(.headline).foregroundColor(.black); HStack { Text(expense.project).font(.caption2).foregroundColor(.gray).padding(.horizontal, 8).padding(.vertical, 4).background(Color.gray.opacity(0.1)).cornerRadius(6); Text(expense.timestamp, style: .date).font(.caption2).foregroundColor(.gray) }; if !expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { Text(expense.note).font(.caption2).foregroundColor(.secondary).lineLimit(2) } }; Spacer(); Text("¥\(Int(expense.effectiveAmount).formatted())").taxSuiteAmountStyle(size: 17, weight: .semibold, tracking: -0.2).foregroundColor(.black) }.padding(.vertical, 4) }
     }
 }
 
-struct CategorySum: Identifiable, Equatable { var id = UUID(); var name: String; var total: Double }
+struct CategorySum: Identifiable, Equatable {
+    let name: String
+    let total: Double
+    let subscriptionTotal: Double
+
+    var id: String { name }
+}
 
 struct AnalyticsView: View {
     @Query private var expenses: [ExpenseItem]
+    @AppStorage("analyticsChartStyle") private var analyticsChartStyleRaw = AnalyticsChartStyle.bar.rawValue
+
+    @State private var selectedRange: AnalyticsRange = .month
     @State private var animatedData: [CategorySum] = []
-    var expenseSummary: [CategorySum] {
-        let grouped = Dictionary(grouping: expenses, by: { $0.title })
-        return grouped.map { key, expensesList in CategorySum(name: key, total: expensesList.reduce(0) { $0 + $1.effectiveAmount }) }.sorted { $0.total > $1.total }
+
+    private var chartStyle: AnalyticsChartStyle {
+        get { AnalyticsChartStyle(rawValue: analyticsChartStyleRaw) ?? .bar }
+        set { analyticsChartStyleRaw = newValue.rawValue }
     }
+
+    private var filteredExpenses: [ExpenseItem] {
+        expenses.filter { selectedRange.contains($0.timestamp, reference: Date()) }
+    }
+
+    private var expenseSummary: [CategorySum] {
+        let grouped = Dictionary(grouping: filteredExpenses) { expense in
+            let trimmed = expense.category.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? "未分類" : trimmed
+        }
+
+        return grouped
+            .map { category, items in
+                CategorySum(
+                    name: category,
+                    total: items.reduce(0) { $0 + $1.effectiveAmount },
+                    subscriptionTotal: items.filter(\.isSubscription).reduce(0) { $0 + $1.effectiveAmount }
+                )
+            }
+            .sorted { $0.total > $1.total }
+    }
+
+    private var subscriptionTotal: Double {
+        filteredExpenses.filter(\.isSubscription).reduce(0) { $0 + $1.effectiveAmount }
+    }
+
+    private var variableTotal: Double {
+        filteredExpenses.filter { !$0.isSubscription }.reduce(0) { $0 + $1.effectiveAmount }
+    }
+
+    private var subscriptionCount: Int {
+        filteredExpenses.filter(\.isSubscription).count
+    }
+
+    private var variableCount: Int {
+        filteredExpenses.filter { !$0.isSubscription }.count
+    }
+
+    private var totalSpentInRange: Double {
+        subscriptionTotal + variableTotal
+    }
+
+    private var subscriptionShare: Double {
+        guard totalSpentInRange > 0 else { return 0 }
+        return subscriptionTotal / totalSpentInRange
+    }
+
+    private var analyticsFingerprint: String {
+        [
+            selectedRange.rawValue,
+            chartStyle.rawValue,
+            String(filteredExpenses.count),
+            String(format: "%.2f", subscriptionTotal),
+            String(format: "%.2f", variableTotal)
+        ].joined(separator: "|")
+    }
+
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color(white: 0.97).ignoresSafeArea()
-                if expenseSummary.isEmpty { Text("まだデータがありません").foregroundColor(.gray) }
-                else {
-                    List {
-                        Section { Chart(animatedData) { item in BarMark(x: .value("金額", item.total), y: .value("項目", item.name)).foregroundStyle(by: .value("項目", item.name)).cornerRadius(8) }.frame(height: 250).padding(.vertical).animation(.spring(response: 0.7, dampingFraction: 0.6), value: animatedData)
-                            .onAppear { animatedData = expenseSummary.map { CategorySum(name: $0.name, total: 0.0) }; DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { animatedData = expenseSummary } }
-                            .onChange(of: expenses) { _, _ in animatedData = expenseSummary }
+            TaxSuiteScreenSurface {
+                if filteredExpenses.isEmpty {
+                    VStack(spacing: 12) {
+                        Picker("期間", selection: $selectedRange) {
+                            ForEach(AnalyticsRange.allCases) { range in
+                                Text(range.rawValue).tag(range)
+                            }
                         }
-                        Section(header: Text("内訳").taxSuiteListHeaderStyle()) { ForEach(expenseSummary) { item in HStack { Text(item.name); Spacer(); Text("¥\(Int(item.total).formatted())").taxSuiteAmountStyle(size: 16, weight: .bold, tracking: -0.2) } } }
-                    }.listStyle(.insetGrouped)
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal, 20)
+
+                        Spacer()
+
+                        Text("\(selectedRange.title)のデータがありません")
+                            .foregroundColor(.gray)
+
+                        Spacer()
+                    }
+                } else {
+                    List {
+                        Section {
+                            Picker("期間", selection: $selectedRange) {
+                                ForEach(AnalyticsRange.allCases) { range in
+                                    Text(range.rawValue).tag(range)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .padding(.vertical, 4)
+                        }
+
+                        Section(header: Text("支出タイプ").taxSuiteListHeaderStyle()) {
+                            spendingTypeBreakdownCard
+                            analyticsSummaryCard(
+                                title: "サブスク",
+                                amount: subscriptionTotal,
+                                count: subscriptionCount,
+                                tint: Color(red: 0.14, green: 0.44, blue: 0.82)
+                            )
+                            analyticsSummaryCard(
+                                title: "通常支出",
+                                amount: variableTotal,
+                                count: variableCount,
+                                tint: Color(red: 0.88, green: 0.47, blue: 0.17)
+                            )
+                        }
+
+                        Section(header: Text(chartStyle.rawValue).taxSuiteListHeaderStyle()) {
+                            Group {
+                                if chartStyle == .bar {
+                                    Chart(animatedData) { item in
+                                        BarMark(
+                                            x: .value("金額", item.total),
+                                            y: .value("カテゴリ", item.name)
+                                        )
+                                        .foregroundStyle(by: .value("カテゴリ", item.name))
+                                        .cornerRadius(8)
+                                    }
+                                } else {
+                                    Chart(animatedData) { item in
+                                        SectorMark(
+                                            angle: .value("金額", item.total),
+                                            innerRadius: .ratio(0.58),
+                                            angularInset: 2
+                                        )
+                                        .foregroundStyle(by: .value("カテゴリ", item.name))
+                                    }
+                                    .chartLegend(.visible)
+                                }
+                            }
+                            .frame(height: 260)
+                            .padding(.vertical, 8)
+                            .animation(.spring(response: 0.7, dampingFraction: 0.7), value: animatedData)
+                        }
+
+                        Section(header: Text("カテゴリ内訳").taxSuiteListHeaderStyle()) {
+                            ForEach(expenseSummary) { item in
+                                HStack(alignment: .top) {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(item.name)
+                                            .foregroundColor(.black)
+                                        if item.subscriptionTotal > 0 {
+                                            Text("サブスク ¥\(Int(item.subscriptionTotal).formatted()) を含む")
+                                                .font(.caption2)
+                                                .foregroundColor(.blue)
+                                        }
+                                    }
+                                    Spacer()
+                                    Text("¥\(Int(item.total).formatted())")
+                                        .taxSuiteAmountStyle(size: 16, weight: .bold, tracking: -0.2)
+                                }
+                                .padding(.vertical, 2)
+                            }
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                    .onAppear {
+                        animateChart()
+                    }
+                    .onChange(of: analyticsFingerprint) { _, _ in
+                        animateChart()
+                    }
                 }
-            }.navigationTitle("分析")
+            }
+            .navigationTitle("分析")
+        }
+    }
+
+    @ViewBuilder
+    private func analyticsSummaryCard(title: String, amount: Double, count: Int, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.black)
+
+            Text("¥\(Int(amount).formatted())")
+                .taxSuiteAmountStyle(size: 22, weight: .bold, tracking: -0.4)
+                .foregroundColor(.black)
+
+            Text("\(count)件")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 2)
+        .listRowBackground(tint.opacity(0.10))
+    }
+
+    private var spendingTypeBreakdownCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("支出の内訳")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.black)
+                Spacer()
+                Text("\(Int((subscriptionShare * 100).rounded()))% がサブスク")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.blue)
+            }
+
+            GeometryReader { proxy in
+                let width = max(proxy.size.width, 1)
+                let subscriptionWidth = max(width * subscriptionShare, subscriptionTotal > 0 ? 20 : 0)
+                let variableWidth = max(width - subscriptionWidth, variableTotal > 0 ? 20 : 0)
+
+                HStack(spacing: 0) {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color(red: 0.14, green: 0.44, blue: 0.82))
+                        .frame(width: subscriptionWidth)
+
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color(red: 0.88, green: 0.47, blue: 0.17))
+                        .frame(width: variableWidth)
+                }
+            }
+            .frame(height: 14)
+
+            HStack(spacing: 12) {
+                legendPill(title: "サブスク", amount: subscriptionTotal, tint: Color(red: 0.14, green: 0.44, blue: 0.82))
+                legendPill(title: "通常支出", amount: variableTotal, tint: Color(red: 0.88, green: 0.47, blue: 0.17))
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func legendPill(title: String, amount: Double, tint: Color) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(tint)
+                .frame(width: 8, height: 8)
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text("¥\(Int(amount).formatted())")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.black)
+        }
+    }
+
+    private func animateChart() {
+        let nextData = expenseSummary
+        animatedData = nextData.map { CategorySum(name: $0.name, total: 0, subscriptionTotal: $0.subscriptionTotal) }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            withAnimation(.spring(response: 0.7, dampingFraction: 0.7)) {
+                animatedData = nextData
+            }
         }
     }
 }
@@ -1570,42 +2078,44 @@ struct TaxKnowledgeGlossaryView: View {
     }
 
     var body: some View {
-        List {
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("TaxSuite ミニ辞典")
-                        .font(.title3.bold())
-                    Text("税務とお金まわりでよく出る言葉を、やさしく確認できる入口です。今後ここに用語を増やしていけます。")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
+        TaxSuiteScreenSurface {
+            List {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("TaxSuite ミニ辞典")
+                            .font(.title3.bold())
+                        Text("税務とお金まわりでよく出る言葉を、やさしく確認できる入口です。今後ここに用語を増やしていけます。")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.vertical, 4)
                 }
-                .padding(.vertical, 4)
-            }
 
-            ForEach(GlossaryTerm.Category.allCases, id: \.self) { category in
-                let terms = filteredTerms.filter { $0.category == category }
+                ForEach(GlossaryTerm.Category.allCases, id: \.self) { category in
+                    let terms = filteredTerms.filter { $0.category == category }
 
-                if !terms.isEmpty {
-                    Section(category.rawValue) {
-                        ForEach(terms) { term in
-                            NavigationLink(destination: GlossaryTermDetailView(term: term)) {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(term.title)
-                                        .font(.headline)
-                                        .foregroundColor(.black)
-                                    Text(term.summary)
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                        .lineLimit(2)
+                    if !terms.isEmpty {
+                        Section(category.rawValue) {
+                            ForEach(terms) { term in
+                                NavigationLink(destination: GlossaryTermDetailView(term: term)) {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(term.title)
+                                            .font(.headline)
+                                            .foregroundColor(.black)
+                                        Text(term.summary)
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                            .lineLimit(2)
+                                    }
+                                    .padding(.vertical, 4)
                                 }
-                                .padding(.vertical, 4)
                             }
                         }
                     }
                 }
             }
+            .listStyle(.insetGrouped)
         }
-        .listStyle(.insetGrouped)
         .navigationTitle("税の知識")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "用語を検索")
@@ -1616,34 +2126,35 @@ struct GlossaryTermDetailView: View {
     let term: GlossaryTerm
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(term.category.rawValue)
-                        .font(.caption.bold())
-                        .foregroundColor(.blue)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.blue.opacity(0.08))
-                        .clipShape(Capsule())
-                    Text(term.title)
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
-                    Text(term.summary)
-                        .font(.headline)
-                        .foregroundColor(.secondary)
+        TaxSuiteScreenSurface {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(term.category.rawValue)
+                            .font(.caption.bold())
+                            .foregroundColor(.blue)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.blue.opacity(0.08))
+                            .clipShape(Capsule())
+                        Text(term.title)
+                            .font(.system(size: 30, weight: .bold, design: .rounded))
+                        Text(term.summary)
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Text(term.detail)
+                        .font(.body)
+                        .foregroundColor(.black)
+                        .lineSpacing(6)
+
+                    Spacer(minLength: 0)
                 }
-
-                Text(term.detail)
-                    .font(.body)
-                    .foregroundColor(.black)
-                    .lineSpacing(6)
-
-                Spacer(minLength: 0)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(24)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(24)
         }
-        .background(Color(white: 0.97))
         .navigationTitle(term.title)
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -1659,42 +2170,44 @@ struct CSVPreviewView: View {
     }
 
     var body: some View {
-        List {
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("書き出し前の確認")
-                        .font(.title3.bold())
-                    Text(format.previewSummary)
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
+        TaxSuiteScreenSurface {
+            List {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("書き出し前の確認")
+                            .font(.title3.bold())
+                        Text(format.previewSummary)
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
 
-                    if format.usesAccountingCategoryMapping {
-                        Text("売上は会計ソフト向けに `売上高` として出力されます。経費は下の一覧どおりに整理されます。")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        if format.usesAccountingCategoryMapping {
+                            Text("売上は会計ソフト向けに `売上高` として出力されます。経費は下の一覧どおりに整理されます。")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                Section(header: Text(sectionTitle).taxSuiteListHeaderStyle()) {
+                    if previewExpenses.isEmpty {
+                        Text("記録がありません")
+                            .foregroundColor(.gray)
+                    } else {
+                        ForEach(previewExpenses) { expense in
+                            previewRow(for: expense)
+                        }
+
+                        if expenses.count > previewExpenses.count {
+                            Text("最新 \(previewExpenses.count) 件を表示中")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
-                .padding(.vertical, 4)
             }
-
-            Section(header: Text(sectionTitle).taxSuiteListHeaderStyle()) {
-                if previewExpenses.isEmpty {
-                    Text("記録がありません")
-                        .foregroundColor(.gray)
-                } else {
-                    ForEach(previewExpenses) { expense in
-                        previewRow(for: expense)
-                    }
-
-                    if expenses.count > previewExpenses.count {
-                        Text("最新 \(previewExpenses.count) 件を表示中")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
+            .listStyle(.insetGrouped)
         }
-        .listStyle(.insetGrouped)
         .navigationTitle("書き出しプレビュー")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -1816,25 +2329,26 @@ struct ReportDraftComposerView: View {
     }
 
     var body: some View {
-        List {
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("報告をそのまま外に出す")
-                        .font(.title3.bold())
-                    Text("TaxSuite の数字を、件名・本文・CSV添付まで整えた状態で共有シートへ渡します。")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
+        TaxSuiteScreenSurface {
+            List {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("報告をそのまま外に出す")
+                            .font(.title3.bold())
+                        Text("TaxSuite の数字を、件名・本文・CSV添付まで整えた状態で共有シートへ渡します。")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.vertical, 4)
                 }
-                .padding(.vertical, 4)
-            }
 
-            Section(header: Text("相手と差出人").taxSuiteListHeaderStyle()) {
-                TextField("宛名（例: 山田先生）", text: $advisorName)
-                TextField("差出人名", text: $senderName)
-                TextField("屋号 / 事業名（任意）", text: $businessName)
-            }
+                Section(header: Text("相手と差出人").taxSuiteListHeaderStyle()) {
+                    TextField("宛名（例: 山田先生）", text: $advisorName)
+                    TextField("差出人名", text: $senderName)
+                    TextField("屋号 / 事業名（任意）", text: $businessName)
+                }
 
-            Section(header: Text("報告内容").taxSuiteListHeaderStyle()) {
+                Section(header: Text("報告内容").taxSuiteListHeaderStyle()) {
                 Picker("報告タイプ", selection: $reportType) {
                     ForEach(ReportType.allCases) { type in
                         Text(type.rawValue).tag(type)
@@ -1859,9 +2373,9 @@ struct ReportDraftComposerView: View {
                 Text(reportType.subtitle)
                     .font(.caption)
                     .foregroundColor(.secondary)
-            }
+                }
 
-            Section(header: Text("概要").taxSuiteListHeaderStyle()) {
+                Section(header: Text("概要").taxSuiteListHeaderStyle()) {
                 HStack {
                     metricColumn(title: "売上", value: preview.revenueTotal)
                     Spacer()
@@ -1886,9 +2400,9 @@ struct ReportDraftComposerView: View {
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.trailing)
                 }
-            }
+                }
 
-            Section(header: Text("本文プレビュー").taxSuiteListHeaderStyle()) {
+                Section(header: Text("本文プレビュー").taxSuiteListHeaderStyle()) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(preview.subject)
                         .font(.headline)
@@ -1900,10 +2414,10 @@ struct ReportDraftComposerView: View {
                         .lineSpacing(5)
                 }
                 .padding(.vertical, 4)
-            }
+                }
 
-            Section {
-                Button(action: shareDraft) {
+                Section {
+                    Button(action: shareDraft) {
                     HStack(spacing: 12) {
                         Image(systemName: "paperplane.fill")
                             .foregroundColor(.blue)
@@ -1917,10 +2431,11 @@ struct ReportDraftComposerView: View {
                         }
                     }
                     .padding(.vertical, 4)
+                    }
                 }
             }
+            .listStyle(.insetGrouped)
         }
-        .listStyle(.insetGrouped)
         .navigationTitle("報告下書き")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $sharePayload) { payload in
@@ -1974,17 +2489,51 @@ struct SettingsView: View {
     @Query(sort: \ExpenseItem.timestamp, order: .reverse) private var expenses: [ExpenseItem]
     @Query(sort: \IncomeItem.timestamp, order: .reverse) private var incomes: [IncomeItem]
     @Binding var taxRate: Double
-    @State private var showingProModal = false
+    @AppStorage("isTaxSuiteProEnabled") private var isTaxSuiteProEnabled = false
+    @AppStorage("analyticsChartStyle") private var analyticsChartStyleRaw = AnalyticsChartStyle.bar.rawValue
+    @AppStorage("gmailConnected") private var gmailConnected = false
+    @AppStorage("gmailAddress") private var gmailAddress = ""
     @State private var exportFile: ExportFile?
     @State private var exportErrorMessage: String?
     @State private var selectedExportFormat: ExportFormat = .standard
+
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color(white: 0.97).ignoresSafeArea()
+            TaxSuiteScreenSurface {
                 List {
-                    Section { Button(action: { showingProModal = true }) { HStack { VStack(alignment: .leading, spacing: 4) { Text("TaxSuite Pro にアップグレード").font(.headline).foregroundColor(.black); Text("領収書スキャン・無制限のデータ保存").font(.caption).foregroundColor(.gray) }; Spacer(); Image(systemName: "chevron.right").foregroundColor(.gray).font(.caption) }.padding(.vertical, 4) } }
+                    Section {
+                        Button {
+                            isTaxSuiteProEnabled.toggle()
+                        } label: {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(isTaxSuiteProEnabled ? "TaxSuite Pro を使用中" : "TaxSuite Pro を有効化")
+                                        .font(.headline)
+                                        .foregroundColor(.black)
+                                    Text("テスト用に、領収書まわりのPro導線をすぐ使える状態にします")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                                Spacer()
+                                Text(isTaxSuiteProEnabled ? "ON" : "OFF")
+                                    .font(.caption.bold())
+                                    .foregroundColor(isTaxSuiteProEnabled ? .green : .secondary)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background((isTaxSuiteProEnabled ? Color.green : Color.gray).opacity(0.12))
+                                    .clipShape(Capsule())
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
                     Section(header: Text("計算設定")) { HStack { Text("推定税率"); Spacer(); Picker("", selection: $taxRate) { Text("10%").tag(0.1); Text("20%").tag(0.2); Text("30%").tag(0.3) }.tint(.black) } }
+                    Section(header: Text("分析")) {
+                        Picker("チャート表示", selection: $analyticsChartStyleRaw) {
+                            ForEach(AnalyticsChartStyle.allCases) { style in
+                                Text(style.rawValue).tag(style.rawValue)
+                            }
+                        }
+                    }
                     Section(header: Text("固定費")) {
                         NavigationLink(destination: RecurringExpensesSettingsView()) {
                             HStack(spacing: 12) {
@@ -2054,15 +2603,15 @@ struct SettingsView: View {
                         }
                     }
                     Section(header: Text("連携")) {
-                        NavigationLink(destination: ReportDraftComposerView(defaultFormat: selectedExportFormat, taxRate: taxRate)) {
+                        NavigationLink(destination: GmailConnectionSettingsView()) {
                             HStack(spacing: 12) {
-                                Image(systemName: "paperplane.circle.fill")
-                                    .foregroundColor(.indigo)
+                                Image(systemName: gmailConnected ? "checkmark.circle.fill" : "envelope.badge")
+                                    .foregroundColor(gmailConnected ? .green : .red)
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("報告下書きを作成")
+                                    Text("Gmail 連携")
                                         .font(.headline)
                                         .foregroundColor(.black)
-                                    Text("税理士や自分向けに件名・本文・CSV をまとめて準備")
+                                    Text(gmailConnected ? (gmailAddress.isEmpty ? "連携済み" : gmailAddress) : "最初にここを有効化すると、共有導線を使えるようになります")
                                         .font(.caption)
                                         .foregroundColor(.gray)
                                 }
@@ -2070,6 +2619,42 @@ struct SettingsView: View {
                                 Image(systemName: "chevron.right")
                                     .foregroundColor(.gray)
                                     .font(.caption)
+                            }
+                            .padding(.vertical, 4)
+                        }
+
+                        if gmailConnected {
+                        NavigationLink(destination: ReportDraftComposerView(defaultFormat: selectedExportFormat, taxRate: taxRate)) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "paperplane.circle.fill")
+                                    .foregroundColor(.indigo)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Gmail 用の報告下書き")
+                                        .font(.headline)
+                                        .foregroundColor(.black)
+                                    Text("件名・本文・CSV をまとめて準備")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                                    .font(.caption)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        } else {
+                            HStack(spacing: 12) {
+                                Image(systemName: "lock.fill")
+                                    .foregroundColor(.gray)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Gmail 用の報告下書き")
+                                        .font(.headline)
+                                        .foregroundColor(.gray)
+                                    Text("Gmail を連携すると使えるようになります")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
                             }
                             .padding(.vertical, 4)
                         }
@@ -2091,10 +2676,10 @@ struct SettingsView: View {
                             .padding(.vertical, 4)
                         }
                     }
-                }.listStyle(.insetGrouped)
+                }
+                .listStyle(.insetGrouped)
             }
             .navigationTitle("設定")
-            .sheet(isPresented: $showingProModal) { ProUpgradeView() }
             .sheet(item: $exportFile) { exportFile in
                 ShareSheet(activityItems: [exportFile.url])
             }
@@ -2132,62 +2717,64 @@ struct RecurringExpensesSettingsView: View {
     @State private var editingRecurringExpense: RecurringExpense?
 
     var body: some View {
-        List {
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("毎月の固定費")
-                        .font(.title3.bold())
-                    Text("一度登録しておくと、アプリがアクティブになったタイミングで当月分を自動追加します。")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                }
-                .padding(.vertical, 4)
-            }
-
-            Section("登録済み") {
-                if recurringExpenses.isEmpty {
-                    Text("まだ固定費は登録されていません")
-                        .foregroundColor(.gray)
-                } else {
-                    ForEach(recurringExpenses) { recurringExpense in
-                        Button {
-                            editingRecurringExpense = recurringExpense
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(recurringExpense.title)
-                                        .font(.headline)
-                                        .foregroundColor(.black)
-                                    HStack(spacing: 8) {
-                                        Text(recurringExpense.project)
-                                            .font(.caption2)
-                                            .foregroundColor(.gray)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(Color.gray.opacity(0.1))
-                                            .cornerRadius(6)
-                                        Text("毎月\(recurringExpense.dayOfMonth)日")
-                                            .font(.caption2)
-                                            .foregroundColor(.blue)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(Color.blue.opacity(0.1))
-                                            .cornerRadius(6)
-                                    }
-                                }
-                                Spacer()
-                                Text("¥\(Int(recurringExpense.amount).formatted())")
-                                    .taxSuiteAmountStyle(size: 17, weight: .semibold, tracking: -0.2)
-                                    .foregroundColor(.black)
-                            }
-                            .padding(.vertical, 4)
-                        }
+        TaxSuiteScreenSurface {
+            List {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("毎月の固定費")
+                            .font(.title3.bold())
+                        Text("一度登録しておくと、アプリがアクティブになったタイミングで当月分を自動追加します。")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
                     }
-                    .onDelete(perform: deleteRecurringExpenses)
+                    .padding(.vertical, 4)
+                }
+
+                Section("登録済み") {
+                    if recurringExpenses.isEmpty {
+                        Text("まだ固定費は登録されていません")
+                            .foregroundColor(.gray)
+                    } else {
+                        ForEach(recurringExpenses) { recurringExpense in
+                            Button {
+                                editingRecurringExpense = recurringExpense
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(recurringExpense.title)
+                                            .font(.headline)
+                                            .foregroundColor(.black)
+                                        HStack(spacing: 8) {
+                                            Text(recurringExpense.project)
+                                                .font(.caption2)
+                                                .foregroundColor(.gray)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(Color.gray.opacity(0.1))
+                                                .cornerRadius(6)
+                                            Text("毎月\(recurringExpense.dayOfMonth)日")
+                                                .font(.caption2)
+                                                .foregroundColor(.blue)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(Color.blue.opacity(0.1))
+                                                .cornerRadius(6)
+                                        }
+                                    }
+                                    Spacer()
+                                    Text("¥\(Int(recurringExpense.amount).formatted())")
+                                        .taxSuiteAmountStyle(size: 17, weight: .semibold, tracking: -0.2)
+                                        .foregroundColor(.black)
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+                        .onDelete(perform: deleteRecurringExpenses)
+                    }
                 }
             }
+            .listStyle(.insetGrouped)
         }
-        .listStyle(.insetGrouped)
         .navigationTitle("固定費を管理")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -2229,28 +2816,30 @@ struct RecurringExpenseEditView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("名前") {
-                    TextField("例：Adobe / サーバー代", text: $title)
-                }
-                Section("金額") {
-                    WalletChargeInputView(amountText: $amountText)
-                }
-                Section("プロジェクト") {
-                    Picker("プロジェクト", selection: $project) {
-                        ForEach(projects, id: \.self) { project in
-                            Text(project).tag(project)
+            TaxSuiteScreenSurface {
+                Form {
+                    Section("名前") {
+                        TextField("例：Adobe / サーバー代", text: $title)
+                    }
+                    Section("金額") {
+                        WalletChargeInputView(amountText: $amountText)
+                    }
+                    Section("プロジェクト") {
+                        Picker("プロジェクト", selection: $project) {
+                            ForEach(projects, id: \.self) { project in
+                                Text(project).tag(project)
+                            }
                         }
+                        .pickerStyle(.segmented)
                     }
-                    .pickerStyle(.segmented)
-                }
-                Section("引き落とし日") {
-                    Stepper(value: $dayOfMonth, in: 1...31) {
-                        Text("毎月 \(dayOfMonth) 日")
+                    Section("引き落とし日") {
+                        Stepper(value: $dayOfMonth, in: 1...31) {
+                            Text("毎月 \(dayOfMonth) 日")
+                        }
+                        Text("存在しない日付はその月の末日に自動調整します。")
+                            .font(.caption)
+                            .foregroundColor(.gray)
                     }
-                    Text("存在しない日付はその月の末日に自動調整します。")
-                        .font(.caption)
-                        .foregroundColor(.gray)
                 }
             }
             .navigationTitle(recurringExpense == nil ? "固定費を追加" : "固定費を編集")
@@ -2301,9 +2890,206 @@ struct RecurringExpenseEditView: View {
     }
 }
 
+struct GmailConnectionSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("gmailConnected") private var gmailConnected = false
+    @AppStorage("gmailAddress") private var gmailAddress = ""
+
+    private var trimmedAddress: String {
+        gmailAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        TaxSuiteScreenSurface {
+            Form {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Gmail を先に準備")
+                            .font(.title3.bold())
+                        Text("共有ボタンを押したときに、Gmail 向けの下書き導線を使える状態にするための接続ステータスです。")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                Section("アカウント") {
+                    TextField("Gmail アドレス", text: $gmailAddress)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.emailAddress)
+
+                    Button(gmailConnected ? "連携を解除" : "このアドレスで連携") {
+                        if gmailConnected {
+                            gmailConnected = false
+                        } else {
+                            gmailAddress = trimmedAddress
+                            gmailConnected = true
+                        }
+                    }
+                    .disabled(!gmailConnected && trimmedAddress.isEmpty)
+                }
+
+                Section("状態") {
+                    HStack {
+                        Text("現在")
+                        Spacer()
+                        Text(gmailConnected ? "連携済み" : "未連携")
+                            .foregroundColor(gmailConnected ? .green : .secondary)
+                    }
+                }
+            }
+        }
+        .navigationTitle("Gmail 連携")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("閉じる") { dismiss() }
+            }
+        }
+    }
+}
+
+struct ReceiptBatchDraft: Identifiable {
+    let id = UUID()
+    var title: String = ""
+    var amountText: String = ""
+    var category: String = "未分類"
+    var project: String = "その他"
+    var note: String = ""
+}
+
+struct ReceiptImportView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var drafts: [ReceiptBatchDraft] = [ReceiptBatchDraft()]
+
+    private let categoryOptions = ExpenseAutofillPredictor.defaultCategories
+    private let projectOptions = ExpenseAutofillPredictor.defaultProjects
+
+    var body: some View {
+        NavigationStack {
+            TaxSuiteScreenSurface {
+                Form {
+                    Section {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("領収書まとめ入力")
+                                .font(.title3.bold())
+                            Text("領収書にある複数の支出を、ここでまとめて登録できます。")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
+                        .padding(.vertical, 4)
+                    }
+
+                    ForEach($drafts) { $draft in
+                        Section("明細") {
+                            TextField("項目名", text: $draft.title)
+                            WalletChargeInputView(amountText: $draft.amountText)
+                            Picker("カテゴリ", selection: $draft.category) {
+                                ForEach(categoryOptions, id: \.self) { category in
+                                    Text(category).tag(category)
+                                }
+                            }
+                            Picker("プロジェクト", selection: $draft.project) {
+                                ForEach(projectOptions, id: \.self) { project in
+                                    Text(project).tag(project)
+                                }
+                            }
+                            TextField("コメント（任意）", text: $draft.note, axis: .vertical)
+                        }
+                    }
+
+                    Section {
+                        Button("明細を追加") {
+                            drafts.append(ReceiptBatchDraft())
+                        }
+
+                        if drafts.count > 1 {
+                            Button("最後の明細を削除", role: .destructive) {
+                                drafts.removeLast()
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("領収書から追加")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("キャンセル") { dismiss() }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("保存") {
+                        saveDrafts()
+                    }
+                    .fontWeight(.bold)
+                    .disabled(validDrafts.isEmpty)
+                }
+            }
+        }
+    }
+
+    private var validDrafts: [ReceiptBatchDraft] {
+        drafts.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !(Double($0.amountText) ?? 0).isZero }
+    }
+
+    private func saveDrafts() {
+        for draft in validDrafts {
+            modelContext.insert(
+                ExpenseItem(
+                    title: draft.title.trimmingCharacters(in: .whitespacesAndNewlines),
+                    amount: Double(draft.amountText) ?? 0,
+                    category: draft.category,
+                    project: draft.project,
+                    businessRatio: 1.0,
+                    note: draft.note
+                )
+            )
+        }
+
+        try? modelContext.save()
+        dismiss()
+    }
+}
+
 struct ProUpgradeView: View {
-    @Environment(\.dismiss) var dismiss
-    var body: some View { VStack(spacing: 30) { Text("TaxSuite Pro").font(.system(size: 32, weight: .bold, design: .rounded)).padding(.top, 40); Spacer(); Button("閉じる") { dismiss() }.padding().foregroundColor(.gray) } }
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("isTaxSuiteProEnabled") private var isTaxSuiteProEnabled = false
+
+    var body: some View {
+        TaxSuiteScreenSurface {
+            VStack(spacing: 24) {
+                Text("TaxSuite Pro")
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .padding(.top, 12)
+
+                Text("テスト用に、ボタンひとつで Pro 状態に切り替えられます。")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 28)
+
+                Spacer()
+
+                Button(isTaxSuiteProEnabled ? "すでに有効です" : "テスト用に Pro を有効化") {
+                    isTaxSuiteProEnabled = true
+                    dismiss()
+                }
+                .font(.headline)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(Color.black)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .padding(.horizontal, 24)
+
+                Button("閉じる") { dismiss() }
+                    .padding(.bottom, 28)
+                    .foregroundColor(.gray)
+            }
+        }
+    }
 }
 
 #Preview {

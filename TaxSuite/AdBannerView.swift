@@ -40,12 +40,8 @@ struct AdBannerView: UIViewRepresentable {
 /// ─────────────────────────────────────────────
 struct AdBannerView: View {
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.04)
-            Text("広告スペース")
-                .font(.caption2)
-                .foregroundColor(Color.gray.opacity(0.5))
-        }
+        RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .fill(Color.black.opacity(0.04))
         .frame(maxWidth: .infinity)
         .frame(height: 50)
     }

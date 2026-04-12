@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import AppIntents
 
 struct TaxSuiteEntry: TimelineEntry {
     let date: Date
@@ -32,9 +33,12 @@ struct TaxSuiteWidgetView: View {
 
     var body: some View {
         switch family {
-        case .systemSmall:  smallView
-        case .systemMedium: mediumView
-        default:            smallView
+        case .systemSmall:
+            smallView
+        case .systemMedium:
+            mediumView
+        default:
+            smallView
         }
     }
 
@@ -57,47 +61,50 @@ struct TaxSuiteWidgetView: View {
 
             HStack(spacing: 8) {
                 summaryPill(label: "今日", value: currency(entry.snapshot.todayExpensesTotal))
-                summaryPill(label: "件数", value: "\(entry.snapshot.todayExpenseCount)件")
+                summaryPill(label: "最新", value: entry.snapshot.recentExpenseTitle ?? "未記録")
             }
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .widgetURL(URL(string: "taxsuite://dashboard"))
         .containerBackground(for: .widget) {
             widgetBackground
         }
     }
 
     var mediumView: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 10) {
-                    widgetHeader
+        VStack(alignment: .leading, spacing: 12) {
+            widgetHeader
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("今月の推定手取り")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(currency(entry.snapshot.takeHome))
-                            .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.65)
-                    }
+            VStack(alignment: .leading, spacing: 10) {
+                Text("今月の推定手取り")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(currency(entry.snapshot.takeHome))
+                    .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+                    .foregroundStyle(.primary)
 
-                    progressBar
+                progressBar
+
+                HStack(spacing: 8) {
+                    summaryPill(label: "今日の支出", value: currency(entry.snapshot.todayExpensesTotal))
+                    summaryPill(label: "今月の経費", value: currency(entry.snapshot.currentMonthExpenses))
+                    summaryPill(label: "記録数", value: "\(entry.snapshot.todayExpenseCount)件")
                 }
-
-                VStack(spacing: 10) {
-                    metricCard(title: "売上", value: entry.snapshot.currentMonthRevenue, tint: Color(red: 0.17, green: 0.39, blue: 0.82))
-                    metricCard(title: "経費", value: entry.snapshot.currentMonthExpenses, tint: Color(red: 0.91, green: 0.49, blue: 0.18))
-                    metricCard(title: "税金", value: entry.snapshot.estimatedTax, tint: Color(red: 0.82, green: 0.26, blue: 0.26))
-                }
-                .frame(maxWidth: 132)
             }
+            .padding(14)
+            .background(Color.white.opacity(0.58))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
 
-            HStack(spacing: 10) {
-                summaryPill(label: "今日の支出", value: currency(entry.snapshot.todayExpensesTotal))
-                summaryPill(label: "最新", value: entry.snapshot.recentExpenseTitle ?? "まだ記録なし")
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                quickAddButton(title: "カフェ", amount: 600, category: "会議費", project: "エンジニア業")
+                quickAddButton(title: "電車", amount: 180, category: "交通費", project: "その他")
+                quickAddButton(title: "昼食", amount: 1000, category: "福利厚生費", project: "その他")
+                quickAddButton(title: "消耗品", amount: 1500, category: "消耗品費", project: "その他")
             }
+            .frame(maxWidth: .infinity)
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -161,26 +168,37 @@ struct TaxSuiteWidgetView: View {
         .frame(height: 10)
     }
 
-    private func metricCard(title: String, value: Double, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Text(currency(value))
-                .font(.system(size: 15, weight: .semibold, design: .rounded).monospacedDigit())
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .foregroundStyle(.primary)
+    private func quickAddButton(title: String, amount: Double, category: String, project: String) -> some View {
+        Button(
+            intent: WidgetQuickExpenseIntent(
+                title: title,
+                amount: amount,
+                category: category,
+                project: project
+            )
+        ) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Text(currency(amount))
+                    .font(.system(size: 16, weight: .bold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Text(category)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .background(Color.white.opacity(0.72))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 10)
-        .background(tint.opacity(0.10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(tint.opacity(0.18), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .buttonStyle(.plain)
+        .frame(minHeight: 64)
     }
 
     private func summaryPill(label: String, value: String) -> some View {
@@ -223,10 +241,9 @@ struct TaxSuiteWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: TaxSuiteProvider()) { entry in
             TaxSuiteWidgetView(entry: entry)
-                .widgetURL(URL(string: "taxsuite://dashboard"))
         }
         .configurationDisplayName("TaxSuite")
-        .description("推定手取りと今日の支出をホーム画面で素早く確認")
+        .description("推定手取りの確認と、よく使う経費の即時追加")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -235,6 +252,7 @@ private extension TaxSuiteWidgetSnapshot {
     static let preview = TaxSuiteWidgetSnapshot(
         generatedAt: .now,
         monthLabel: "2026年4月",
+        taxRate: 0.2,
         currentMonthRevenue: 480000,
         currentMonthExpenses: 96200,
         estimatedTax: 76760,
