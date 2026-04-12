@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A50A3CEE2F8B2A0500618AFA /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = A50A3CED2F8B2A0500618AFA /* GoogleMobileAds */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		A50A3CD02F895EB500618AFA /* TaxSuite.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TaxSuite.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -15,7 +19,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
-				TODO.md,
 			);
 			target = A50A3CCF2F895EB500618AFA /* TaxSuite */;
 		};
@@ -37,6 +40,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A50A3CEE2F8B2A0500618AFA /* GoogleMobileAds in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -79,6 +83,7 @@
 			);
 			name = TaxSuite;
 			packageProductDependencies = (
+				A50A3CED2F8B2A0500618AFA /* GoogleMobileAds */,
 			);
 			productName = TaxSuite;
 			productReference = A50A3CD02F895EB500618AFA /* TaxSuite.app */;
@@ -108,6 +113,9 @@
 			);
 			mainGroup = A50A3CC72F895EB500618AFA;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A50A3CEC2F8B2A0500618AFA /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A50A3CD12F895EB500618AFA /* Products */;
 			projectDirPath = "";
@@ -352,6 +360,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A50A3CEC2F8B2A0500618AFA /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 13.2.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A50A3CED2F8B2A0500618AFA /* GoogleMobileAds */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A50A3CEC2F8B2A0500618AFA /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
+			productName = GoogleMobileAds;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A50A3CC82F895EB500618AFA /* Project object */;
 }

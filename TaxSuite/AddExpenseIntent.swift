@@ -36,17 +36,19 @@ struct AddExpenseIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        // メインアプリと同じスキーマ・ストアにアクセス
-        let schema = Schema([ExpenseItem.self, RecurringExpense.self])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-        let container = try ModelContainer(for: schema, configurations: [config])
+        let container = try TaxSuitePersistence.makeContainer()
+        let context = container.mainContext
 
         let expense = ExpenseItem(
-            title:   expenseTitle,
-            amount:  amount,
-            project: project.rawValue
+            timestamp: Date(),
+            title: expenseTitle,
+            amount: amount,
+            category: "未分類",
+            project: project.rawValue,
+            businessRatio: 1.0
         )
-        container.mainContext.insert(expense)
+        context.insert(expense)
+        try context.save()
 
         let msg = "¥\(Int(amount).formatted())の\(expenseTitle)を\(project.rawValue)に記録しました"
         return .result(dialog: IntentDialog(stringLiteral: msg))

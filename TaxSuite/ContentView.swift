@@ -58,6 +58,79 @@ struct TaxCalculator {
     }
 }
 
+struct GlossaryTerm: Identifiable, Hashable {
+    enum Category: String, CaseIterable, Hashable {
+        case tax = "税の基本"
+        case bookkeeping = "記録と申告"
+        case investment = "投資の基本"
+    }
+
+    let id: String
+    let title: String
+    let category: Category
+    let summary: String
+    let detail: String
+
+    static let sampleTerms: [GlossaryTerm] = [
+        GlossaryTerm(
+            id: "kakutei-shinkoku",
+            title: "確定申告",
+            category: .tax,
+            summary: "1年間の所得と税額をまとめて申告する手続きです。",
+            detail: "個人事業主や副業の収入がある人が、1月1日から12月31日までの所得を整理して税額を確定させる手続きです。TaxSuiteに記録した売上や経費は、この整理の土台になります。"
+        ),
+        GlossaryTerm(
+            id: "keihi",
+            title: "経費",
+            category: .tax,
+            summary: "仕事のために使ったお金のうち、事業に必要な支出です。",
+            detail: "売上を得るために必要だった支出は経費として扱えます。プライベートと混ざるものは、家事按分で事業分だけを計上するのが基本です。"
+        ),
+        GlossaryTerm(
+            id: "kaji-anbun",
+            title: "家事按分",
+            category: .bookkeeping,
+            summary: "仕事と私用が混ざる支出を、事業分だけに分ける考え方です。",
+            detail: "通信費や家賃の一部など、事業と私生活の両方で使う支出は、そのまま全額を経費にはできません。TaxSuiteの事業割合スライダーで、事業に使った比率だけを管理できます。"
+        ),
+        GlossaryTerm(
+            id: "aoiro-shinkoku",
+            title: "青色申告",
+            category: .bookkeeping,
+            summary: "一定の帳簿付けを行うことで特典を受けられる申告方式です。",
+            detail: "複式簿記や期限内申告などの条件を満たすと、青色申告特別控除などのメリットがあります。日々の記録を整えておくほど有利になりやすい制度です。"
+        ),
+        GlossaryTerm(
+            id: "genka-shokyaku",
+            title: "減価償却",
+            category: .bookkeeping,
+            summary: "高額な資産の購入費を、複数年に分けて経費化する考え方です。",
+            detail: "パソコンやカメラのように長く使うものは、一度に全額を経費にせず、耐用年数に応じて少しずつ費用化する場合があります。"
+        ),
+        GlossaryTerm(
+            id: "nisa",
+            title: "NISA",
+            category: .investment,
+            summary: "一定額までの投資利益が非課税になる制度です。",
+            detail: "つみたて投資枠や成長投資枠を使って、運用益や配当金にかかる税金を抑えながら投資できます。税の基本と投資を一緒に学ぶ入口として人気があります。"
+        ),
+        GlossaryTerm(
+            id: "index-toshi",
+            title: "インデックス投資",
+            category: .investment,
+            summary: "市場全体の値動きに連動することを目指す投資方法です。",
+            detail: "日経平均やS&P500のような指数に連動する商品へ分散して投資する考え方です。長期・積立・分散の基本と相性が良い手法です。"
+        ),
+        GlossaryTerm(
+            id: "haito-rimawari",
+            title: "配当利回り",
+            category: .investment,
+            summary: "株価に対して、年間配当がどれくらいかを示す目安です。",
+            detail: "配当金の多さを比較するときの参考指標ですが、高いほど安全とは限りません。値上がり益や企業の安定性と合わせて見るのが大切です。"
+        )
+    ]
+}
+
 // MARK: - App Root
 struct ContentView: View {
     @State private var selectedTab = 0
@@ -121,6 +194,7 @@ struct DashboardView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 28) {
                         mainMetricCard
+                        adBannerSection
                         quickAddSection
                         todayExpensesSection
                         Spacer().frame(height: 80)
@@ -171,6 +245,27 @@ struct DashboardView: View {
     
     private func metricItem(title: String, value: Double, valueColor: Color = .black) -> some View {
         VStack(spacing: 6) { Text(title).font(.caption).foregroundColor(.gray); Text("¥\(Int(value).formatted())").font(.headline).foregroundColor(valueColor) }.frame(maxWidth: .infinity)
+    }
+
+    private var adBannerSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("スポンサー")
+                .font(.caption)
+                .foregroundColor(.gray)
+                .padding(.horizontal, 24)
+
+            HStack {
+                Spacer()
+                AdBannerView()
+                    .frame(height: 50)
+                Spacer()
+            }
+            .padding(.vertical, 12)
+            .background(Color.white)
+            .cornerRadius(18)
+            .shadow(color: .black.opacity(0.03), radius: 8, x: 0, y: 4)
+            .padding(.horizontal, 20)
+        }
     }
     
     private var quickAddSection: some View {
@@ -471,6 +566,102 @@ struct AnalyticsView: View {
     }
 }
 
+struct TaxKnowledgeGlossaryView: View {
+    @State private var searchText = ""
+
+    private var filteredTerms: [GlossaryTerm] {
+        if searchText.isEmpty {
+            return GlossaryTerm.sampleTerms
+        }
+
+        return GlossaryTerm.sampleTerms.filter { term in
+            term.title.localizedCaseInsensitiveContains(searchText)
+                || term.summary.localizedCaseInsensitiveContains(searchText)
+                || term.detail.localizedCaseInsensitiveContains(searchText)
+                || term.category.rawValue.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+
+    var body: some View {
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("TaxSuite ミニ辞典")
+                        .font(.title3.bold())
+                    Text("税務とお金まわりでよく出る言葉を、やさしく確認できる入口です。今後ここに用語を増やしていけます。")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+                .padding(.vertical, 4)
+            }
+
+            ForEach(GlossaryTerm.Category.allCases, id: \.self) { category in
+                let terms = filteredTerms.filter { $0.category == category }
+
+                if !terms.isEmpty {
+                    Section(category.rawValue) {
+                        ForEach(terms) { term in
+                            NavigationLink(destination: GlossaryTermDetailView(term: term)) {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(term.title)
+                                        .font(.headline)
+                                        .foregroundColor(.black)
+                                    Text(term.summary)
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                        .lineLimit(2)
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("税の知識")
+        .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $searchText, prompt: "用語を検索")
+    }
+}
+
+struct GlossaryTermDetailView: View {
+    let term: GlossaryTerm
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(term.category.rawValue)
+                        .font(.caption.bold())
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.blue.opacity(0.08))
+                        .clipShape(Capsule())
+                    Text(term.title)
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                    Text(term.summary)
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                }
+
+                Text(term.detail)
+                    .font(.body)
+                    .foregroundColor(.black)
+                    .lineSpacing(6)
+
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(24)
+        }
+        .background(Color(white: 0.97))
+        .navigationTitle(term.title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
 struct SettingsView: View {
     @Binding var taxRate: Double
     @State private var showingProModal = false
@@ -481,6 +672,23 @@ struct SettingsView: View {
                 List {
                     Section { Button(action: { showingProModal = true }) { HStack { VStack(alignment: .leading, spacing: 4) { Text("TaxSuite Pro にアップグレード").font(.headline).foregroundColor(.black); Text("領収書スキャン・無制限のデータ保存").font(.caption).foregroundColor(.gray) }; Spacer(); Image(systemName: "chevron.right").foregroundColor(.gray).font(.caption) }.padding(.vertical, 4) } }
                     Section(header: Text("計算設定")) { HStack { Text("推定税率"); Spacer(); Picker("", selection: $taxRate) { Text("10%").tag(0.1); Text("20%").tag(0.2); Text("30%").tag(0.3) }.tint(.black) } }
+                    Section(header: Text("学ぶ")) {
+                        NavigationLink(destination: TaxKnowledgeGlossaryView()) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "book.closed.fill")
+                                    .foregroundColor(.green)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("税の知識ミニ辞典")
+                                        .font(.headline)
+                                        .foregroundColor(.black)
+                                    Text("税務用語や投資の基本をさっと確認")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
                 }.listStyle(.insetGrouped)
             }.navigationTitle("設定").sheet(isPresented: $showingProModal) { ProUpgradeView() }
         }

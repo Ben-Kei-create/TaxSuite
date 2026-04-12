@@ -7,23 +7,26 @@ import SwiftUI
 import GoogleMobileAds
 
 struct AdBannerView: UIViewRepresentable {
-    // ⚠️ リリース前に AdMob コンソールで取得した本番 ID に変更する
-    // テスト用:  ca-app-pub-3940256099942544/2934735716
-    // 本番用:   ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX
-    var adUnitID: String = "ca-app-pub-3940256099942544/2934735716"
+    typealias UIViewType = BannerView
 
-    func makeUIView(context: Context) -> GADBannerView {
-        let banner = GADBannerView(adSize: GADAdSizeBanner)
+    // ⚠️ リリース前に AdMob コンソールで取得した本番 ID に変更する
+    // Google公式の iOS バナー向けテスト用広告ユニット ID
+    // テスト用:  ca-app-pub-3940256099942544/2435281174
+    // 本番用:   ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX
+    var adUnitID: String = "ca-app-pub-3940256099942544/2435281174"
+
+    func makeUIView(context: Context) -> BannerView {
+        let banner = BannerView(adSize: AdSizeBanner)
         banner.adUnitID = adUnitID
-        banner.rootViewController = UIApplication.shared
-            .connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.windows.first?.rootViewController
-        banner.load(GADRequest())
+
+        let request = Request()
+        request.scene = UIApplication.shared.connectedScenes.first as? UIWindowScene
+        banner.load(request)
+
         return banner
     }
 
-    func updateUIView(_ uiView: GADBannerView, context: Context) {}
+    func updateUIView(_ uiView: BannerView, context: Context) {}
 }
 
 #else
