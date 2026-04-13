@@ -5,9 +5,14 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
+		<string>location</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>レシートをスキャンして経費を自動入力するために使用します</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>近くのカフェやコワーキングスペースに到着したとき、経費記録のリマインダーをお送りするために使用します</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>バックグラウンドでも位置情報を使用し、指定した場所に到着したときに自動で経費記録の通知をお送りします。位置情報はデバイス上のみで処理され、外部サーバーへ送信されることはありません。</string>
 	<!-- ⚠️ AdMob SDK 追加後、AdMob コンソールで取得した本番 App ID に変更する -->
 	<!-- テスト用: ca-app-pub-3940256099942544~1458002511 -->
 	<key>GADApplicationIdentifier</key>

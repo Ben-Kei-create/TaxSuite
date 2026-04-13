@@ -12,6 +12,8 @@ struct TaxSuiteApp: App {
 #endif
         // Google Sign-In: 前回のセッションを非同期で復元
         Task { await GoogleAuthService.shared.restorePreviousSignIn() }
+        // LocationManager をメインスレッドで初期化し、通知デリゲートを登録
+        _ = LocationManager.shared
     }
     
     var sharedModelContainer: ModelContainer = {

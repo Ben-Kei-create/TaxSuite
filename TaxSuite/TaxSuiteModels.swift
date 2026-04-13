@@ -3,6 +3,45 @@ import SwiftData
 
 // MARK: - SwiftData Models
 
+// MARK: LocationTrigger
+
+/// ジオフェンスの監視ポイントを表す SwiftData モデル。
+/// CloudKit 同期のため全プロパティを非オプショナル＋デフォルト値で定義。
+@Model
+final class LocationTrigger {
+    var id: UUID = UUID()
+    var name: String = ""
+    var latitude: Double = 35.6812
+    var longitude: Double = 139.7671
+    var radius: Double = 100          // メートル（50〜500 の範囲で使用）
+    var defaultAmount: Double = 0     // 0 = 金額なし
+    var defaultProject: String = "その他"
+    var defaultCategory: String = "未分類"
+    var isEnabled: Bool = true
+    var createdAt: Date = Date()
+
+    init(
+        name: String,
+        latitude: Double,
+        longitude: Double,
+        radius: Double = 100,
+        defaultAmount: Double = 0,
+        defaultProject: String = "その他",
+        defaultCategory: String = "未分類"
+    ) {
+        self.id              = UUID()
+        self.name            = name
+        self.latitude        = latitude
+        self.longitude       = longitude
+        self.radius          = radius
+        self.defaultAmount   = defaultAmount
+        self.defaultProject  = defaultProject
+        self.defaultCategory = defaultCategory
+        self.isEnabled       = true
+        self.createdAt       = Date()
+    }
+}
+
 @Model
 final class ExpenseItem {
     var timestamp: Date = Date()

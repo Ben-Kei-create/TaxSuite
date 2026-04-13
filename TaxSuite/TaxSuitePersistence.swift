@@ -4,7 +4,8 @@ enum TaxSuitePersistence {
     static let schema = Schema([
         ExpenseItem.self,
         RecurringExpense.self,
-        IncomeItem.self
+        IncomeItem.self,
+        LocationTrigger.self
     ])
 
     static func makeContainer(inMemory: Bool = false) throws -> ModelContainer {

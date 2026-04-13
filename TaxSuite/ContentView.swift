@@ -8,6 +8,10 @@ struct ContentView: View {
     @State private var selectedTab = 0
     @AppStorage("taxRate") private var taxRate: Double = 0.2
 
+    // ジオフェンス通知から開く経費入力シート
+    @State private var locationManager = LocationManager.shared
+    @State private var showingGeofenceExpenseSheet = false
+
     var body: some View {
         TabView(selection: $selectedTab) {
             DashboardView(taxRate: $taxRate)
@@ -27,10 +31,32 @@ struct ContentView: View {
                 .tag(3)
         }
         .accentColor(.black)
+        // ジオフェンス通知タップ → 経費入力シートを開く
+        .sheet(isPresented: $showingGeofenceExpenseSheet, onDismiss: {
+            locationManager.pendingGeofenceExpense = nil
+        }) {
+            if let pending = locationManager.pendingGeofenceExpense {
+                ExpenseEditView(
+                    expense: nil,
+                    initialTitle: pending.triggerName,
+                    initialAmount: pending.amount > 0 ? String(Int(pending.amount)) : "",
+                    initialCategory: pending.category,
+                    initialProject: pending.project
+                )
+            }
+        }
+        .onChange(of: locationManager.pendingGeofenceExpense) { _, newValue in
+            if newValue != nil {
+                selectedTab = 0  // ホームに切り替え
+                showingGeofenceExpenseSheet = true
+            }
+        }
         .task {
             processPendingWidgetExpenses()
             checkAndAddRecurringExpenses()
             refreshWidgetSnapshot()
+            // 通知権限をリクエスト（ジオフェンス通知のため）
+            await locationManager.requestNotificationPermission()
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
@@ -129,5 +155,5 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView().modelContainer(for: [ExpenseItem.self, RecurringExpense.self, IncomeItem.self], inMemory: true)
+    ContentView().modelContainer(for: [ExpenseItem.self, RecurringExpense.self, IncomeItem.self, LocationTrigger.self], inMemory: true)
 }

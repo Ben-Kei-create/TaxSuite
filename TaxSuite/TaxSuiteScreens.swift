@@ -772,6 +772,8 @@ struct ExpenseEditView: View {
     var expense: ExpenseItem?
     var initialTitle: String = ""
     var initialAmount: String = ""
+    var initialCategory: String = ""
+    var initialProject: String = ""
 
     @State private var title: String = ""
     @State private var amountText: String = ""
@@ -961,6 +963,14 @@ struct ExpenseEditView: View {
             amountText = initialAmount
             selectedDate = Date()
             note = ""
+            if !initialCategory.isEmpty {
+                category = initialCategory
+                hasManualCategoryOverride = true
+            }
+            if !initialProject.isEmpty {
+                project = initialProject
+                hasManualProjectOverride = true
+            }
             project = TaxSuiteWidgetStore.fallbackProjectName()
             applySuggestion(for: initialTitle)
         }
@@ -2077,6 +2087,23 @@ struct SettingsView: View {
                                         .font(.headline)
                                         .foregroundColor(.black)
                                     Text("ダッシュボードとホーム画面で共通")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                    Section(header: Text("場所でリマインド")) {
+                        NavigationLink(destination: LocationTriggersView()) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "mappin.and.ellipse")
+                                    .foregroundColor(.red)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("ジオフェンス設定")
+                                        .font(.headline)
+                                        .foregroundColor(.black)
+                                    Text("到着通知で経費をワンタップ記録")
                                         .font(.caption2)
                                         .foregroundColor(.secondary)
                                 }
