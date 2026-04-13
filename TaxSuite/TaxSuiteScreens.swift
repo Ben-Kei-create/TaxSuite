@@ -217,6 +217,14 @@ struct DashboardView: View {
             }
             .navigationTitle("ダッシュボード")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Text("TaxSuite v1.0")
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
+                }
+            }
             .toolbar(showingShortcutBar ? .hidden : .visible, for: .tabBar)
             .animation(.spring(response: 0.3, dampingFraction: 0.86), value: showingShortcutBar)
             .sheet(isPresented: $showingExpenseSheet) { ExpenseEditView(expense: nil, initialTitle: draftTitle, initialAmount: draftAmount) }
@@ -791,6 +799,7 @@ struct ExpenseEditView: View {
     var initialAmount: String = ""
     var initialCategory: String = ""
     var initialProject: String = ""
+    var initialDate: Date = Date()
 
     @State private var title: String = ""
     @State private var amountText: String = ""
@@ -978,7 +987,7 @@ struct ExpenseEditView: View {
         } else {
             title = initialTitle
             amountText = initialAmount
-            selectedDate = Date()
+            selectedDate = initialDate   // カレンダーなどから指定された日付を使用
             note = ""
             if !initialCategory.isEmpty {
                 category = initialCategory
@@ -1059,6 +1068,7 @@ struct CalendarHistoryView: View {
     @State private var selectedDate = Date()
     @State private var displayedMonth = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
     @State private var editingExpense: ExpenseItem?
+    @State private var showingNewExpenseSheet = false
 
     private let weekdaySymbols = ["日", "月", "火", "水", "木", "金", "土"]
 
@@ -1109,12 +1119,32 @@ struct CalendarHistoryView: View {
     }
 
     private var dailyExpenseHeader: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(selectedDate, format: .dateTime.month().day())
-                .taxSuiteListHeaderStyle()
-            Text("¥\(Int(dailyTotal).formatted())")
-                .taxSuiteAmountStyle(size: 18, weight: .bold, tracking: -0.2)
-                .foregroundColor(.primary)
+        HStack(alignment: .bottom) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(selectedDate, format: .dateTime.month().day().weekday())
+                    .taxSuiteListHeaderStyle()
+                Text("¥\(Int(dailyTotal).formatted())")
+                    .taxSuiteAmountStyle(size: 18, weight: .bold, tracking: -0.2)
+                    .foregroundColor(.primary)
+            }
+            Spacer()
+            // 選択日に経費を手動追加するボタン
+            Button {
+                showingNewExpenseSheet = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "plus")
+                        .font(.caption.weight(.bold))
+                    Text("経費を追加")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.black)
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
         }
         .padding(.vertical, 4)
     }
@@ -1163,6 +1193,10 @@ struct CalendarHistoryView: View {
             }
             .sheet(item: $editingExpense) { expense in
                 ExpenseEditView(expense: expense)
+            }
+            // 選択日付で経費を新規作成
+            .sheet(isPresented: $showingNewExpenseSheet) {
+                ExpenseEditView(expense: nil, initialDate: selectedDate)
             }
         }
     }
@@ -2014,7 +2048,6 @@ struct SettingsView: View {
     @Query(sort: \IncomeItem.timestamp, order: .reverse) private var incomes: [IncomeItem]
     @Binding var taxRate: Double
     @AppStorage("isTaxSuiteProEnabled") private var isTaxSuiteProEnabled = false
-    @AppStorage("analyticsChartStyle") private var analyticsChartStyleRaw = AnalyticsChartStyle.bar.rawValue
     @State private var exportFile: ExportFile?
     @State private var exportErrorMessage: String?
     @State private var selectedExportFormat: ExportFormat = .standard
@@ -2073,13 +2106,6 @@ struct SettingsView: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .onSubmit(saveProjectNames)
-                        }
-                    }
-                    Section(header: Text("分析")) {
-                        Picker("チャート表示", selection: $analyticsChartStyleRaw) {
-                            ForEach(AnalyticsChartStyle.allCases) { style in
-                                Text(style.rawValue).tag(style.rawValue)
-                            }
                         }
                     }
                     Section(header: Text("固定費")) {
@@ -3101,11 +3127,39 @@ struct WidgetButtonSettingsView: View {
                         .listRowBackground(Color.clear)
                 }
 
-                // スロット一覧
-                Section(header: Text("ボタン設定")) {
+                // スロット一覧（削除・追加可能）
+                Section(header: Text("ボタン設定（最大4つ）")) {
                     ForEach($slots) { $slot in
                         NavigationLink(destination: WidgetSlotEditorView(slot: $slot, expenseHistory: Array(expenseHistory.prefix(60)), recurringExpenses: recurringExpenses)) {
                             slotRow(slot)
+                        }
+                    }
+                    .onDelete { offsets in
+                        withAnimation {
+                            slots.remove(atOffsets: offsets)
+                            // ID を 0 始まりで詰め直す
+                            for i in slots.indices { slots[i].id = i }
+                            TaxSuiteWidgetStore.saveButtonSlots(slots)
+                        }
+                    }
+
+                    if slots.count < 4 {
+                        Button {
+                            withAnimation {
+                                let projectNames = TaxSuiteWidgetStore.loadProjectNames()
+                                let newSlot = WidgetButtonSlot(
+                                    id: slots.count,
+                                    title: "",
+                                    amount: 0,
+                                    category: "未分類",
+                                    project: projectNames.first ?? "その他"
+                                )
+                                slots.append(newSlot)
+                                TaxSuiteWidgetStore.saveButtonSlots(slots)
+                            }
+                        } label: {
+                            Label("ショートカットを追加", systemImage: "plus.circle.fill")
+                                .foregroundColor(.black)
                         }
                     }
                 }

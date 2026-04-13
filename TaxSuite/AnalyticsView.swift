@@ -5,8 +5,8 @@ import SwiftData
 // MARK: - AnalyticsAxis
 
 enum AnalyticsAxis: String, CaseIterable, Identifiable {
-    case accounting     = "カテゴリ別"
-    case project        = "プロジェクト別"
+    case accounting      = "カテゴリ別"
+    case project         = "プロジェクト別"
     case fixedVsVariable = "固定 vs 変動"
 
     var id: String { rawValue }
@@ -40,8 +40,7 @@ enum AnalyticsAxis: String, CaseIterable, Identifiable {
 
 struct AnalyticsView: View {
     @Query private var expenses: [ExpenseItem]
-    @AppStorage("analyticsChartStyle") private var analyticsChartStyleRaw = AnalyticsChartStyle.bar.rawValue
-    @AppStorage("analyticsAxis")       private var analyticsAxisRaw       = AnalyticsAxis.accounting.rawValue
+    @AppStorage("analyticsAxis") private var analyticsAxisRaw = AnalyticsAxis.accounting.rawValue
 
     @State private var selectedRange: AnalyticsRange = .month
     @State private var animatedData: [CategorySum]   = []
@@ -50,9 +49,6 @@ struct AnalyticsView: View {
 
     private var selectedAxis: AnalyticsAxis {
         AnalyticsAxis(rawValue: analyticsAxisRaw) ?? .accounting
-    }
-    private var chartStyle: AnalyticsChartStyle {
-        AnalyticsChartStyle(rawValue: analyticsChartStyleRaw) ?? .bar
     }
 
     // MARK: Filtered base data
@@ -78,7 +74,6 @@ struct AnalyticsView: View {
         }
     }
 
-    // 正規化された accountingCategory をベースに集計
     private var accountingCategoryData: [CategorySum] {
         Dictionary(grouping: filteredExpenses) { $0.accountingCategory }
             .map { name, items in
@@ -91,7 +86,6 @@ struct AnalyticsView: View {
             .sorted { $0.total > $1.total }
     }
 
-    // プロジェクトタグごとに集計
     private var projectData: [CategorySum] {
         Dictionary(grouping: filteredExpenses) {
             let p = $0.project.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -107,7 +101,6 @@ struct AnalyticsView: View {
         .sorted { $0.total > $1.total }
     }
 
-    // 固定費 (サブスク) vs 変動費の2分割
     private var fixedVsVariableData: [CategorySum] {
         [
             CategorySum(name: "固定費", total: subscriptionTotal, subscriptionTotal: subscriptionTotal),
@@ -121,7 +114,6 @@ struct AnalyticsView: View {
         [
             selectedRange.rawValue,
             analyticsAxisRaw,
-            analyticsChartStyleRaw,
             String(filteredExpenses.count),
             String(format: "%.0f", totalSpent)
         ].joined(separator: "|")
@@ -213,14 +205,12 @@ struct AnalyticsView: View {
             }
             .padding(.vertical, 4)
 
-            // 固定費 vs 変動費 軸のときは内訳バーを概要に表示
             if selectedAxis == .fixedVsVariable {
                 spendingTypeBreakdownCard
             }
         }
     }
 
-    // 固定費 vs 変動費 軸のときのみ個別サマリーカードを表示
     @ViewBuilder
     private var fixedVariableCardsSection: some View {
         if selectedAxis == .fixedVsVariable {
@@ -243,28 +233,13 @@ struct AnalyticsView: View {
 
     private var chartSection: some View {
         Section(header: Text(selectedAxis.chartHeader).taxSuiteListHeaderStyle()) {
-            Group {
-                if chartStyle == .bar {
-                    barChart
-                } else {
-                    donutChart
-                }
-            }
-            .frame(height: 260)
-            .padding(.vertical, 8)
-            // 軸・データ変化時に Spring アニメーションでグラフを滑らかに更新
-            .animation(.spring(response: 0.6, dampingFraction: 0.75), value: animatedData)
-
-            // グラフ表示形式の切り替え
-            Picker("表示形式", selection: chartStyleBinding) {
-                ForEach(AnalyticsChartStyle.allCases) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .padding(.bottom, 4)
+            donutChart
+                .frame(height: 260)
+                .padding(.vertical, 8)
+                .animation(.spring(response: 0.6, dampingFraction: 0.75), value: animatedData)
         }
     }
 
-    // カテゴリ別・プロジェクト別のみ内訳リストを表示（固定 vs 変動は概要セクションに表示済み）
     @ViewBuilder
     private var breakdownSection: some View {
         if selectedAxis != .fixedVsVariable {
@@ -276,20 +251,7 @@ struct AnalyticsView: View {
         }
     }
 
-    // MARK: - Charts
-
-    private var barChart: some View {
-        Chart(animatedData) { item in
-            BarMark(
-                x: .value("金額", item.total),
-                y: .value(selectedAxis.dimensionLabel, item.name)
-            )
-            .foregroundStyle(by: .value(selectedAxis.dimensionLabel, item.name))
-            .cornerRadius(8)
-        }
-        .chartXAxis(.hidden)
-        .chartLegend(.hidden)
-    }
+    // MARK: - Donut Chart (only)
 
     private var donutChart: some View {
         Chart(animatedData) { item in
@@ -336,22 +298,13 @@ struct AnalyticsView: View {
         )
     }
 
-    private var chartStyleBinding: Binding<AnalyticsChartStyle> {
-        Binding(
-            get: { AnalyticsChartStyle(rawValue: analyticsChartStyleRaw) ?? .bar },
-            set: { analyticsChartStyleRaw = $0.rawValue }
-        )
-    }
-
     // MARK: - Animation
 
     private func animateChart() {
         let next = currentAxisData
-        // ① まずゼロ状態にリセット（即時）
         animatedData = next.map {
             CategorySum(name: $0.name, total: 0, subscriptionTotal: $0.subscriptionTotal)
         }
-        // ② 1フレーム後に実値へ Spring アニメーション
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.75)) {
                 animatedData = next
@@ -395,7 +348,7 @@ struct AnalyticsView: View {
             GeometryReader { proxy in
                 let width = max(proxy.size.width, 1)
                 let fixedWidth = max(width * subscriptionShare, subscriptionTotal > 0 ? 20 : 0)
-                let varWidth   = max(width - fixedWidth,       variableTotal > 0 ? 20 : 0)
+                let varWidth   = max(width - fixedWidth, variableTotal > 0 ? 20 : 0)
 
                 HStack(spacing: 0) {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
