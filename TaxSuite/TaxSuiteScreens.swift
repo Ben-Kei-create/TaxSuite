@@ -446,13 +446,28 @@ struct DashboardView: View {
 
     private var mainMetricCard: some View {
         VStack(spacing: 18) {
-            VStack(spacing: 8) {
-                Text("今月の推定手取り").font(.subheadline).foregroundColor(.gray)
-                Text("¥\(Int(takeHome).formatted())")
-                    .taxSuiteHeroAmountStyle()
-                    .foregroundColor(.black)
+            ZStack(alignment: .topTrailing) {
+                VStack(spacing: 8) {
+                    Text("今月の推定手取り").font(.subheadline).foregroundColor(.gray)
+                    Text("¥\(Int(takeHome).formatted())")
+                        .taxSuiteHeroAmountStyle()
+                        .foregroundColor(.black)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 20)
+
+                // 売上追加ボタン
+                Button {
+                    showingIncomeSheet = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundColor(.blue)
+                        .background(Color.white.clipShape(Circle()))
+                }
+                .padding(.top, 12)
+                .padding(.trailing, 14)
             }
-            .padding(.top, 20)
 
             Divider().padding(.horizontal, 20)
 

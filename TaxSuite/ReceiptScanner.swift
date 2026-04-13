@@ -302,6 +302,7 @@ struct ScannedReceiptReviewView: View {
     @State private var businessRatio: Double
     @State private var note: String
     @State private var showRawText = false
+    @State private var rawTextCopied = false
 
     @State private var suggestion: ExpenseAutofillSuggestion?
     @State private var hasManualCategoryOverride = false
@@ -317,7 +318,8 @@ struct ScannedReceiptReviewView: View {
         self.parsed = parsed
         _title = State(initialValue: parsed.suggestedTitle)
         _amountText = State(initialValue: parsed.amount.map { String(Int($0)) } ?? "")
-        _date = State(initialValue: parsed.date ?? Date())
+        // 常に「今日」をデフォルトにする（OCR 日付は参考表示のみ）
+        _date = State(initialValue: Date())
         _category = State(initialValue: "未分類")
         _project = State(initialValue: TaxSuiteWidgetStore.fallbackProjectName())
         _businessRatio = State(initialValue: 1.0)
@@ -349,9 +351,32 @@ struct ScannedReceiptReviewView: View {
                     }
 
                     Section(header: Text("日付")) {
-                        DatePicker("日付", selection: $date, displayedComponents: .date)
+                        DatePicker("日付", selection: $date, in: ...Date(), displayedComponents: .date)
                             .datePickerStyle(.compact)
                             .environment(\.locale, Locale(identifier: "ja_JP"))
+
+                        if let ocrDate = parsed.date {
+                            let formatter = {
+                                let f = DateFormatter()
+                                f.locale = Locale(identifier: "ja_JP")
+                                f.dateStyle = .medium
+                                return f
+                            }()
+                            Button {
+                                date = ocrDate
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "doc.text.magnifyingglass")
+                                        .font(.caption2)
+                                    Text("領収書の日付: \(formatter.string(from: ocrDate))")
+                                        .font(.caption)
+                                    Spacer()
+                                    Text("適用")
+                                        .font(.caption.bold())
+                                }
+                                .foregroundColor(.blue)
+                            }
+                        }
                     }
 
                     Section(header: Text("分類")) {
@@ -391,15 +416,33 @@ struct ScannedReceiptReviewView: View {
                     // Raw OCR text (debug / verification)
                     if !parsed.rawText.isEmpty {
                         Section {
-                            Button {
-                                showRawText.toggle()
-                            } label: {
-                                Label(
-                                    showRawText ? "読み取りテキストを隠す" : "読み取りテキストを表示",
-                                    systemImage: showRawText ? "chevron.up" : "doc.text.magnifyingglass"
-                                )
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            HStack {
+                                Button {
+                                    showRawText.toggle()
+                                } label: {
+                                    Label(
+                                        showRawText ? "読み取りテキストを隠す" : "読み取りテキストを表示",
+                                        systemImage: showRawText ? "chevron.up" : "doc.text.magnifyingglass"
+                                    )
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                Button {
+                                    UIPasteboard.general.string = parsed.rawText
+                                    rawTextCopied = true
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                        rawTextCopied = false
+                                    }
+                                } label: {
+                                    Image(systemName: rawTextCopied ? "checkmark" : "doc.on.doc")
+                                        .font(.caption)
+                                        .foregroundColor(rawTextCopied ? .green : .secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .animation(.easeInOut(duration: 0.2), value: rawTextCopied)
                             }
 
                             if showRawText {
@@ -407,6 +450,7 @@ struct ScannedReceiptReviewView: View {
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
+                                    .textSelection(.enabled)
                             }
                         }
                     }
