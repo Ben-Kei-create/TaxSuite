@@ -2943,9 +2943,13 @@ struct ReceiptImportView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    @State private var drafts: [ReceiptBatchDraft] = [ReceiptBatchDraft()]
+    /// 手動追加 + スキャン確認後のドラフトをここに蓄積する
+    @State private var drafts: [ReceiptBatchDraft] = []
     @State private var showingScanner = false
-    @State private var parsedReceiptForReview: ParsedReceipt?
+    /// スキャン後の未確認キュー（ページごとに1件）
+    @State private var pendingReceipts: [ParsedReceipt] = []
+    /// キューの先頭を確認中かどうか
+    @State private var showingReview = false
 
     private let categoryOptions = ExpenseAutofillPredictor.defaultCategories
     private var projectOptions: [String] {
@@ -2956,11 +2960,12 @@ struct ReceiptImportView: View {
         NavigationStack {
             TaxSuiteScreenSurface {
                 Form {
+                    // ヘッダー + スキャンボタン
                     Section {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("領収書まとめ入力")
                                 .font(.title3.bold())
-                            Text("複数の支出をまとめて登録できます。")
+                            Text("カメラでスキャンすると1枚ずつ確認できます。手動追加もできます。")
                                 .font(.caption)
                                 .foregroundColor(.gray)
                         }
@@ -2983,35 +2988,77 @@ struct ReceiptImportView: View {
                         }
                         .buttonStyle(.plain)
                         .padding(.vertical, 4)
-                    }
 
-                    ForEach($drafts) { $draft in
-                        Section("明細") {
-                            TextField("項目名", text: $draft.title)
-                            WalletChargeInputView(amountText: $draft.amountText)
-                            Picker("カテゴリ", selection: $draft.category) {
-                                ForEach(categoryOptions, id: \.self) { category in
-                                    Text(category).tag(category)
-                                }
-                            }
-                            Picker("プロジェクト", selection: $draft.project) {
-                                ForEach(projectOptions, id: \.self) { project in
-                                    Text(project).tag(project)
-                                }
-                            }
-                            TextField("コメント（任意）", text: $draft.note, axis: .vertical)
+                        // 未確認キューのバッジ
+                        if !pendingReceipts.isEmpty {
+                            Label("\(pendingReceipts.count)枚の確認待ち", systemImage: "clock.badge.exclamationmark")
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(.orange)
                         }
                     }
 
+                    // スキャン・手動追加された明細（編集可）
+                    if !drafts.isEmpty {
+                        ForEach($drafts) { $draft in
+                            Section {
+                                TextField("項目名", text: $draft.title)
+                                WalletChargeInputView(amountText: $draft.amountText)
+                                DatePicker("日付", selection: $draft.date, in: ...Date(), displayedComponents: .date)
+                                    .datePickerStyle(.compact)
+                                    .environment(\.locale, Locale(identifier: "ja_JP"))
+                                Picker("カテゴリ", selection: $draft.category) {
+                                    ForEach(categoryOptions, id: \.self) { Text($0).tag($0) }
+                                }
+                                Picker("プロジェクト", selection: $draft.project) {
+                                    ForEach(projectOptions, id: \.self) { Text($0).tag($0) }
+                                }
+                                if draft.businessRatio < 1.0 {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        HStack {
+                                            Text("事業用: \(Int(draft.businessRatio * 100))%").font(.caption).bold()
+                                            Spacer()
+                                            if let amt = Double(draft.amountText) {
+                                                Text("計上: ¥\(Int(amt * draft.businessRatio))").font(.caption2).foregroundColor(.gray)
+                                            }
+                                        }
+                                        Slider(value: $draft.businessRatio, in: 0...1.0, step: 0.1).tint(.black)
+                                    }
+                                } else {
+                                    Button {
+                                        withAnimation { draft.businessRatio = 0.5 }
+                                    } label: {
+                                        Label("按分を設定する", systemImage: "percent")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                TextField("コメント（任意）", text: $draft.note, axis: .vertical)
+                                    .lineLimit(2, reservesSpace: false)
+                            } header: {
+                                HStack {
+                                    Text("明細")
+                                    Spacer()
+                                    // 個別削除ボタン
+                                    Button {
+                                        withAnimation { drafts.removeAll { $0.id == draft.id } }
+                                    } label: {
+                                        Image(systemName: "minus.circle.fill")
+                                            .foregroundColor(.red)
+                                            .font(.body)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+
+                    // 手動追加ボタン
                     Section {
-                        Button("明細を追加") {
-                            drafts.append(ReceiptBatchDraft())
-                        }
-
-                        if drafts.count > 1 {
-                            Button("最後の明細を削除", role: .destructive) {
-                                drafts.removeLast()
-                            }
+                        Button {
+                            withAnimation { drafts.append(ReceiptBatchDraft()) }
+                        } label: {
+                            Label("明細を手動追加", systemImage: "plus.circle")
+                                .foregroundColor(.black)
                         }
                     }
                 }
@@ -3030,39 +3077,67 @@ struct ReceiptImportView: View {
             }
             .fullScreenCover(isPresented: $showingScanner) {
                 ReceiptScannerView(
-                    onParsed: { parsed in
+                    onParsedAll: { receipts in
                         showingScanner = false
+                        guard !receipts.isEmpty else { return }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                            parsedReceiptForReview = parsed
+                            pendingReceipts = receipts
+                            showingReview = true
                         }
                     },
                     onCancel: { showingScanner = false }
                 )
             }
-            .sheet(item: $parsedReceiptForReview) { parsed in
-                ScannedReceiptReviewView(parsed: parsed)
+            // 1枚ずつ順番に確認シートを表示
+            .sheet(isPresented: $showingReview, onDismiss: advanceQueue) {
+                if let current = pendingReceipts.first {
+                    ScannedReceiptReviewView(
+                        parsed: current,
+                        onConfirmed: { draft in
+                            drafts.append(draft)
+                            pendingReceipts.removeFirst()
+                        },
+                        onSkip: {
+                            pendingReceipts.removeFirst()
+                        },
+                        queueIndex: 0,
+                        queueTotal: pendingReceipts.count
+                    )
+                }
+            }
+        }
+    }
+
+    /// シートが閉じた後、キューに残りがあれば次を表示
+    private func advanceQueue() {
+        if !pendingReceipts.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                showingReview = true
             }
         }
     }
 
     private var validDrafts: [ReceiptBatchDraft] {
-        drafts.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !(Double($0.amountText) ?? 0).isZero }
+        drafts.filter {
+            !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !(Double($0.amountText) ?? 0).isZero
+        }
     }
 
     private func saveDrafts() {
         for draft in validDrafts {
             modelContext.insert(
                 ExpenseItem(
+                    timestamp: draft.date,
                     title: draft.title.trimmingCharacters(in: .whitespacesAndNewlines),
                     amount: Double(draft.amountText) ?? 0,
                     category: draft.category,
                     project: draft.project,
-                    businessRatio: 1.0,
+                    businessRatio: draft.businessRatio,
                     note: draft.note
                 )
             )
         }
-
         try? modelContext.save()
         dismiss()
     }

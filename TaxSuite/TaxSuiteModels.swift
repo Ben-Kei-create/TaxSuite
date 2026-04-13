@@ -962,4 +962,6 @@ struct ReceiptBatchDraft: Identifiable {
     var category: String = "未分類"
     var project: String = TaxSuiteWidgetStore.fallbackProjectName()
     var note: String = ""
+    var date: Date = Date()
+    var businessRatio: Double = 1.0
 }

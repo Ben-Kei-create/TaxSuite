@@ -219,11 +219,12 @@ enum ReceiptParser {
 // MARK: - ReceiptScannerView
 
 struct ReceiptScannerView: UIViewControllerRepresentable {
-    var onParsed: (ParsedReceipt) -> Void
+    /// 複数ページを撮影した場合、ページごとに1件の ParsedReceipt を返す
+    var onParsedAll: ([ParsedReceipt]) -> Void
     var onCancel: () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onParsed: onParsed, onCancel: onCancel)
+        Coordinator(onParsedAll: onParsedAll, onCancel: onCancel)
     }
 
     func makeUIViewController(context: Context) -> VNDocumentCameraViewController {
@@ -235,11 +236,11 @@ struct ReceiptScannerView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: VNDocumentCameraViewController, context: Context) {}
 
     final class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
-        let onParsed: (ParsedReceipt) -> Void
+        let onParsedAll: ([ParsedReceipt]) -> Void
         let onCancel: () -> Void
 
-        init(onParsed: @escaping (ParsedReceipt) -> Void, onCancel: @escaping () -> Void) {
-            self.onParsed = onParsed
+        init(onParsedAll: @escaping ([ParsedReceipt]) -> Void, onCancel: @escaping () -> Void) {
+            self.onParsedAll = onParsedAll
             self.onCancel = onCancel
         }
 
@@ -248,8 +249,9 @@ struct ReceiptScannerView: UIViewControllerRepresentable {
             didFinishWith scan: VNDocumentCameraScan
         ) {
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                var recognizedLines: [String] = []
+                var receipts: [ParsedReceipt] = []
 
+                // ページ（撮影枚数）ごとに独立した ParsedReceipt を生成
                 for pageIndex in 0..<scan.pageCount {
                     let pageImage = scan.imageOfPage(at: pageIndex)
                     guard let cgImage = pageImage.cgImage else { continue }
@@ -262,13 +264,13 @@ struct ReceiptScannerView: UIViewControllerRepresentable {
                     let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
                     try? handler.perform([request])
 
-                    let pageLines = (request.results ?? [])
+                    let lines = (request.results ?? [])
                         .compactMap { $0.topCandidates(1).first?.string }
-                    recognizedLines.append(contentsOf: pageLines)
+
+                    receipts.append(ReceiptParser.parse(from: lines))
                 }
 
-                let parsed = ReceiptParser.parse(from: recognizedLines)
-                DispatchQueue.main.async { self?.onParsed(parsed) }
+                DispatchQueue.main.async { self?.onParsedAll(receipts) }
             }
         }
 
@@ -288,11 +290,17 @@ struct ReceiptScannerView: UIViewControllerRepresentable {
 // MARK: - ScannedReceiptReviewView
 
 struct ScannedReceiptReviewView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \ExpenseItem.timestamp, order: .reverse) private var expenseHistory: [ExpenseItem]
 
     let parsed: ParsedReceipt
+    /// 確認完了時に ReceiptImportView 側へドラフトを渡すコールバック
+    var onConfirmed: (ReceiptBatchDraft) -> Void
+    /// スキップ（この1枚を無視して次へ進む）
+    var onSkip: () -> Void
+    /// 何枚目 / 合計枚数（進捗表示用）
+    var queueIndex: Int = 0
+    var queueTotal: Int = 1
 
     @State private var title: String
     @State private var amountText: String
@@ -456,14 +464,18 @@ struct ScannedReceiptReviewView: View {
                     }
                 }
             }
-            .navigationTitle("スキャン結果の確認")
+            .navigationTitle(queueTotal > 1 ? "\(queueIndex + 1) / \(queueTotal)枚目を確認" : "スキャン結果の確認")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("キャンセル") { dismiss() }
+                    Button("スキップ") {
+                        onSkip()
+                        dismiss()
+                    }
+                    .foregroundColor(.secondary)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存", action: save)
+                    Button("リストへ追加", action: confirm)
                         .fontWeight(.bold)
                         .disabled(isSaveDisabled)
                 }
@@ -527,27 +539,24 @@ struct ScannedReceiptReviewView: View {
         }
     }
 
-    // MARK: - Save
+    // MARK: - Confirm (ドラフトとして返却)
 
     private var isSaveDisabled: Bool {
         title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || amountText.isEmpty
     }
 
-    private func save() {
-        let amount = Double(amountText) ?? 0
-        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, amount > 0 else { return }
-        modelContext.insert(
-            ExpenseItem(
-                timestamp: date,
-                title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                amount: amount,
-                category: category,
-                project: project,
-                businessRatio: businessRatio,
-                note: note
-            )
-        )
-        try? modelContext.save()
+    private func confirm() {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !(Double(amountText) ?? 0).isZero else { return }
+        var draft = ReceiptBatchDraft()
+        draft.title         = trimmed
+        draft.amountText    = amountText
+        draft.category      = category
+        draft.project       = project
+        draft.note          = note
+        draft.date          = date
+        draft.businessRatio = businessRatio
+        onConfirmed(draft)
         dismiss()
     }
 }
