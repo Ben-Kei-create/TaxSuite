@@ -217,6 +217,8 @@ struct DashboardView: View {
             }
             .navigationTitle("ダッシュボード")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(showingShortcutBar ? .hidden : .visible, for: .tabBar)
+            .animation(.spring(response: 0.3, dampingFraction: 0.86), value: showingShortcutBar)
             .sheet(isPresented: $showingExpenseSheet) { ExpenseEditView(expense: nil, initialTitle: draftTitle, initialAmount: draftAmount) }
             .sheet(isPresented: $showingIncomeSheet) { IncomeEditView() }
             .sheet(item: $editingExpense) { expense in ExpenseEditView(expense: expense) }
