@@ -401,7 +401,7 @@ struct LocationTriggerEditView: View {
 
     private func setToCameraCenter() {
         // カメラポジションから座標を抽出
-        if case .region(let region) = cameraPosition {
+        if case let .region(region) = cameraPosition {
             pinCoordinate = region.center
         }
     }
