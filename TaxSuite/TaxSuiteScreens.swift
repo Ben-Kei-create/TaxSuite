@@ -119,31 +119,38 @@ struct DashboardView: View {
     var takeHome: Double { TaxCalculator.calculateTakeHome(revenue: currentMonthRevenue, expenses: currentMonthExpense, taxRate: taxRate) }
 
     var quickExpenseTemplates: [QuickExpenseTemplate] {
-        // タイトル単位で重複を除去 → 各タイトルの「最新」エントリを代表として使う
-        var seenTitles = Set<String>()
-        var dedupedExpenses: [ExpenseItem] = []
-
-        for expense in allExpenses.sorted(by: { $0.timestamp > $1.timestamp }) {
-            let baseTitle = expense.title
+        // ショートカットの並びが経費追加のたびに入れ替わらないよう、
+        // 「タイトルごとの使用回数」と「タイトル名の昇順」で安定的にソートする。
+        // 新規追加は使用回数が 1 段階ずつ増えるだけなので、並び順の変化が緩やか。
+        let grouped = Dictionary(grouping: allExpenses) { expense -> String in
+            expense.title
                 .replacingOccurrences(of: " (自動)", with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !baseTitle.isEmpty else { continue }
-            let normalizedKey = baseTitle.lowercased()
-            guard seenTitles.insert(normalizedKey).inserted else { continue }
-            dedupedExpenses.append(expense)
+                .lowercased()
+        }
+        .filter { !$0.key.isEmpty }
+
+        let sortedGroups = grouped.sorted { lhs, rhs in
+            if lhs.value.count != rhs.value.count {
+                return lhs.value.count > rhs.value.count
+            }
+            return lhs.key < rhs.key
         }
 
-        var templates = dedupedExpenses.map { expense in
-            let baseTitle = expense.title
+        var templates = sortedGroups.compactMap { (_, items) -> QuickExpenseTemplate? in
+            // 代表アイテムはそのタイトルの最新のものを使う（金額・カテゴリなどの最新値を反映するため）
+            guard let representative = items.max(by: { $0.timestamp < $1.timestamp }) else { return nil }
+            let baseTitle = representative.title
                 .replacingOccurrences(of: " (自動)", with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !baseTitle.isEmpty else { return nil }
             return QuickExpenseTemplate(
                 id: "history-\(baseTitle)",
                 title: baseTitle,
-                amount: expense.amount,
-                category: expense.category,
-                project: expense.project,
-                note: expense.note
+                amount: representative.amount,
+                category: representative.category,
+                project: representative.project,
+                note: representative.note
             )
         }
 
@@ -260,7 +267,8 @@ struct DashboardView: View {
                     }
                 }
             }
-            .toolbar(showingShortcutBar ? .hidden : .visible, for: .tabBar)
+            // タブバー（ホーム/カレンダー/分析/設定）は + ボタン押下時でも常に表示しておく。
+            // ショートカットバーはタブバーの上に重ねる形で出現させる。
             .animation(.spring(response: 0.3, dampingFraction: 0.86), value: showingShortcutBar)
             .sheet(isPresented: $showingExpenseSheet) { ExpenseEditView(expense: nil, initialTitle: draftTitle, initialAmount: draftAmount) }
             .sheet(isPresented: $showingIncomeSheet) { IncomeEditView() }
@@ -458,29 +466,47 @@ struct DashboardView: View {
     }
 
     private var shortcutBarOverlay: some View {
+        // タブバーは常に表示したままにするため、ショートカットバーは安全領域を尊重してタブバーの上に並べる。
         VStack(spacing: 0) {
-            Spacer()
-
-            VStack(spacing: 0) {
-                Divider()
-                    .opacity(0.08)
-
-                HStack(spacing: 8) {
-                    ForEach(shortcutSlots) { slot in
-                        shortcutBarButton(for: slot)
-                    }
-
-                    manualEntryButton
-                }
-                .padding(.horizontal, 12)
-                .padding(.top, 10)
-                .padding(.bottom, 10)
-                .frame(maxWidth: .infinity)
-                .background(.ultraThinMaterial)
-                .background(Color(white: 0.98).opacity(0.96))
+            // 上部に細いハンドルを置いて、タップすれば閉じられることを視覚的に示す
+            Button(action: { closeShortcutBar() }) {
+                Capsule()
+                    .fill(Color.black.opacity(0.18))
+                    .frame(width: 36, height: 4)
+                    .padding(.top, 6)
+                    .padding(.bottom, 4)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("ショートカットを閉じる")
+
+            HStack(spacing: 8) {
+                ForEach(shortcutSlots) { slot in
+                    shortcutBarButton(for: slot)
+                }
+
+                manualEntryButton
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 4)
+            .padding(.bottom, 10)
+            .frame(maxWidth: .infinity)
         }
-        .ignoresSafeArea(edges: .bottom)
+        .background(
+            // タブバーとの境界が分かるように薄い影とブラーを背景に重ねる
+            ZStack {
+                Color(white: 0.98).opacity(0.98)
+                VStack {
+                    Divider().opacity(0.12)
+                    Spacer()
+                }
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: -2)
+        .padding(.horizontal, 8)
+        .padding(.bottom, 6)
     }
 
     private func shortcutBarButton(for slot: WidgetButtonSlot) -> some View {
@@ -3698,27 +3724,36 @@ struct WidgetButtonSettingsView: View {
     }
 
     private func previewButton(_ slot: WidgetButtonSlot) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(slot.title.isEmpty ? "未設定" : slot.title)
-                .font(.caption.weight(.semibold))
-                .foregroundColor(slot.title.isEmpty ? .secondary : .primary)
-                .lineLimit(1)
-            Text(slot.amount > 0 ? "¥\(Int(slot.amount).formatted())" : "---")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundColor(slot.amount > 0 ? .primary : .secondary)
-                .lineLimit(1)
+        // プレビュー上のボタンはあくまで「見た目」確認用。タップしても経費は追加されないが、
+        // 押下感（ハプティック＋視覚フィードバック）は実機と同じになるよう Button 化する。
+        Button(action: {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(slot.title.isEmpty ? "未設定" : slot.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(slot.title.isEmpty ? .secondary : .primary)
+                    .lineLimit(1)
+                Text(slot.amount > 0 ? "¥\(Int(slot.amount).formatted())" : "---")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundColor(slot.amount > 0 ? .primary : .secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.white.opacity(0.88))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.black.opacity(0.05), lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.88))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.black.opacity(0.05), lineWidth: 1)
-        )
+        .buttonStyle(PreviewButtonStyle())
+        .accessibilityHint("プレビュー表示。タップしても経費は追加されません")
     }
 
     // MARK: Slot row
@@ -3747,6 +3782,16 @@ struct WidgetButtonSettingsView: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+// プレビュー用ボタンの押下スタイル。実機のウィジェットボタン同様の軽い縮小＋暗化フィードバックのみ行う。
+private struct PreviewButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .opacity(configuration.isPressed ? 0.85 : 1.0)
+            .animation(.spring(response: 0.22, dampingFraction: 0.8), value: configuration.isPressed)
     }
 }
 
