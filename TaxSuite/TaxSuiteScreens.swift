@@ -96,6 +96,13 @@ struct DashboardView: View {
     @State private var draftTitle: String = ""
     @State private var draftAmount: String = ""
 
+    // 本日の経費の一括削除モード用ステート。iPhone の写真アプリ風の選択モードを実現する。
+    @State private var isSelectionMode = false
+    @State private var selectedExpenseIDs: Set<PersistentIdentifier> = []
+    // 現在スワイプで削除ボタンが露出している行。複数行が同時に開かないよう 1 行だけに制限する。
+    @State private var swipeRevealedExpenseID: PersistentIdentifier? = nil
+    @State private var showingBulkDeleteConfirm = false
+
     var currentMonthRevenue: Double {
         let calendar = Calendar.current
         let now = Date()
@@ -202,8 +209,22 @@ struct DashboardView: View {
                         .padding(.top, 6)
                         .padding(.bottom, 20)
                     }
+                    // スワイプで開いている行があるときに背景をタップすると閉じられるようにする
+                    .simultaneousGesture(
+                        TapGesture().onEnded {
+                            if swipeRevealedExpenseID != nil {
+                                withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                                    swipeRevealedExpenseID = nil
+                                }
+                            }
+                        }
+                    )
 
-                    if showingShortcutBar {
+                    if isSelectionMode {
+                        selectionActionBar
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .zIndex(3)
+                    } else if showingShortcutBar {
                         shortcutBarOverlay
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                             .zIndex(2)
@@ -214,15 +235,29 @@ struct DashboardView: View {
                     }
                 }
                 .animation(.spring(response: 0.34, dampingFraction: 0.84), value: showingShortcutBar)
+                .animation(.spring(response: 0.34, dampingFraction: 0.84), value: isSelectionMode)
             }
-            .navigationTitle("ダッシュボード")
+            .navigationTitle(isSelectionMode ? selectionNavTitle : "ダッシュボード")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Text("TaxSuite v1.0")
-                        .font(.caption2)
-                        .fontWeight(.medium)
-                        .foregroundColor(.secondary)
+                if isSelectionMode {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("キャンセル") {
+                            exitSelectionMode()
+                        }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(allTodaySelected ? "選択解除" : "すべて選択") {
+                            toggleSelectAllToday()
+                        }
+                    }
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Text("TaxSuite v1.0")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
             .toolbar(showingShortcutBar ? .hidden : .visible, for: .tabBar)
@@ -232,6 +267,16 @@ struct DashboardView: View {
             .sheet(item: $editingExpense) { expense in ExpenseEditView(expense: expense) }
             .sheet(isPresented: $showingReceiptImporter) { ReceiptImportView() }
             .sheet(isPresented: $showingProModal) { ProUpgradeView() }
+            .confirmationDialog(
+                "選択した\(selectedExpenseIDs.count)件の経費を削除しますか？",
+                isPresented: $showingBulkDeleteConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("削除", role: .destructive) {
+                    deleteSelectedExpenses()
+                }
+                Button("キャンセル", role: .cancel) {}
+            }
             .task {
                 syncWidgetSnapshot()
                 refreshShortcutSlots()
@@ -240,6 +285,101 @@ struct DashboardView: View {
                 syncWidgetSnapshot()
             }
         }
+    }
+
+    // 選択モード時のナビゲーションタイトル
+    private var selectionNavTitle: String {
+        let count = selectedExpenseIDs.count
+        return count == 0 ? "項目を選択" : "\(count)件選択中"
+    }
+
+    private var allTodaySelected: Bool {
+        !todayExpenses.isEmpty && selectedExpenseIDs.count == todayExpenses.count
+    }
+
+    private func toggleSelectAllToday() {
+        if allTodaySelected {
+            selectedExpenseIDs.removeAll()
+        } else {
+            selectedExpenseIDs = Set(todayExpenses.map { $0.persistentModelID })
+        }
+    }
+
+    private func enterSelectionMode(initiallySelecting expense: ExpenseItem? = nil) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+            swipeRevealedExpenseID = nil
+            isSelectionMode = true
+            if let expense {
+                selectedExpenseIDs = [expense.persistentModelID]
+            } else {
+                selectedExpenseIDs = []
+            }
+        }
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+    }
+
+    private func exitSelectionMode() {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+            isSelectionMode = false
+            selectedExpenseIDs.removeAll()
+        }
+    }
+
+    private func toggleSelection(for expense: ExpenseItem) {
+        let id = expense.persistentModelID
+        if selectedExpenseIDs.contains(id) {
+            selectedExpenseIDs.remove(id)
+        } else {
+            selectedExpenseIDs.insert(id)
+        }
+    }
+
+    private func deleteExpense(_ expense: ExpenseItem) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            modelContext.delete(expense)
+            try? modelContext.save()
+            swipeRevealedExpenseID = nil
+        }
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+    }
+
+    private func deleteSelectedExpenses() {
+        let idsToDelete = selectedExpenseIDs
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            for expense in todayExpenses where idsToDelete.contains(expense.persistentModelID) {
+                modelContext.delete(expense)
+            }
+            try? modelContext.save()
+            exitSelectionMode()
+        }
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+    }
+
+    // 選択モード時にボトムへ表示する削除確認バー
+    private var selectionActionBar: some View {
+        HStack(spacing: 12) {
+            Button(action: { showingBulkDeleteConfirm = true }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "trash.fill")
+                    Text(selectedExpenseIDs.isEmpty
+                         ? "削除"
+                         : "\(selectedExpenseIDs.count)件を削除")
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(selectedExpenseIDs.isEmpty ? Color.red.opacity(0.4) : Color.red)
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(selectedExpenseIDs.isEmpty)
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 18)
     }
 
     private func openIncomeSheet() {
@@ -527,10 +667,21 @@ struct DashboardView: View {
 
     private var todayExpensesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("本日の経費")
-                .taxSuiteSectionHeadingStyle()
-                .padding(.horizontal, 24)
-                .padding(.bottom, 2)
+            HStack {
+                Text("本日の経費")
+                    .taxSuiteSectionHeadingStyle()
+                Spacer()
+                if !todayExpenses.isEmpty && !isSelectionMode {
+                    Button("選択") {
+                        enterSelectionMode()
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.blue)
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 2)
+
             if todayExpenses.isEmpty {
                 Text("本日の記録はありません")
                     .font(.subheadline)
@@ -540,55 +691,43 @@ struct DashboardView: View {
             } else {
                 VStack(spacing: 8) {
                     ForEach(todayExpenses) { expense in
-                        Button(action: { editingExpense = expense }) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 5) {
-                                    Text(expense.title).font(.subheadline).bold().foregroundColor(.black)
-                                    if !expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                        Text(expense.note)
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                            .lineLimit(1)
+                        TodayExpenseRow(
+                            expense: expense,
+                            isSelectionMode: isSelectionMode,
+                            isSelected: selectedExpenseIDs.contains(expense.persistentModelID),
+                            isSwipeRevealed: swipeRevealedExpenseID == expense.persistentModelID,
+                            onTap: {
+                                if isSelectionMode {
+                                    toggleSelection(for: expense)
+                                } else if swipeRevealedExpenseID != nil {
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                                        swipeRevealedExpenseID = nil
                                     }
-                                    HStack(spacing: 6) {
-                                        Text(expense.project)
-                                            .font(.caption2)
-                                            .foregroundColor(.gray)
-                                            .padding(.horizontal, 7)
-                                            .padding(.vertical, 3)
-                                            .background(Color.gray.opacity(0.1))
-                                            .cornerRadius(6)
-                                        if expense.businessRatio < 1.0 {
-                                            Text("\(Int(expense.businessRatio * 100))%")
-                                                .font(.caption2)
-                                                .foregroundColor(.orange)
-                                                .padding(.horizontal, 7)
-                                                .padding(.vertical, 3)
-                                                .background(Color.orange.opacity(0.1))
-                                                .cornerRadius(6)
-                                        }
+                                } else {
+                                    editingExpense = expense
+                                }
+                            },
+                            onLongPress: {
+                                if !isSelectionMode {
+                                    enterSelectionMode(initiallySelecting: expense)
+                                }
+                            },
+                            onSwipeReveal: {
+                                withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                                    swipeRevealedExpenseID = expense.persistentModelID
+                                }
+                            },
+                            onSwipeReset: {
+                                if swipeRevealedExpenseID == expense.persistentModelID {
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                                        swipeRevealedExpenseID = nil
                                     }
                                 }
-                                Spacer()
-                                VStack(alignment: .trailing, spacing: 3) {
-                                    Text("¥\(Int(expense.effectiveAmount).formatted())")
-                                        .taxSuiteAmountStyle(size: 16, weight: .semibold, tracking: -0.2)
-                                        .foregroundColor(.black)
-                                    if expense.businessRatio < 1.0 {
-                                        Text("全体: ¥\(Int(expense.amount))")
-                                            .font(.caption2)
-                                            .monospacedDigit()
-                                            .foregroundColor(.gray)
-                                    }
-                                }
-                                .fixedSize(horizontal: false, vertical: true)
+                            },
+                            onDelete: {
+                                deleteExpense(expense)
                             }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 12)
-                            .background(Color.white)
-                            .cornerRadius(15)
-                            .shadow(color: .black.opacity(0.02), radius: 3, x: 0, y: 2)
-                        }
+                        )
                     }
                 }
                 .padding(.horizontal, 20)
@@ -650,6 +789,157 @@ struct QuickAddButton: View {
             generator.impactOccurred()
             onLongPress()
         }
+    }
+}
+
+// 本日の経費リスト 1 行分のビュー。スワイプで削除アクションを露出し、
+// 長押しで親に選択モード開始を通知する。選択モード中はチェックマークを表示する。
+struct TodayExpenseRow: View {
+    let expense: ExpenseItem
+    let isSelectionMode: Bool
+    let isSelected: Bool
+    let isSwipeRevealed: Bool
+    let onTap: () -> Void
+    let onLongPress: () -> Void
+    let onSwipeReveal: () -> Void
+    let onSwipeReset: () -> Void
+    let onDelete: () -> Void
+
+    @State private var dragOffset: CGFloat = 0
+
+    // 削除ボタン領域の幅。iOS 標準のスワイプアクションに近い幅を採用。
+    private let actionWidth: CGFloat = 84
+    // これ以上スワイプしたら「確定」として露出状態にスナップする閾値
+    private let revealThreshold: CGFloat = 40
+
+    // スワイプ・選択モードを考慮した最終的な水平オフセット
+    private var effectiveOffset: CGFloat {
+        if isSelectionMode { return 0 }
+        let baseOffset: CGFloat = isSwipeRevealed ? -actionWidth : 0
+        let combined = baseOffset + dragOffset
+        // 右方向への過度なスワイプは抑制。左方向も actionWidth の 1.3 倍までに制限。
+        return max(min(combined, 0), -actionWidth * 1.3)
+    }
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            // 背面の削除アクション
+            if !isSelectionMode {
+                Button(action: onDelete) {
+                    VStack(spacing: 4) {
+                        Image(systemName: "trash.fill")
+                            .font(.title3)
+                        Text("削除")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(width: actionWidth)
+                    .frame(maxHeight: .infinity)
+                    .background(Color.red)
+                    .cornerRadius(15)
+                }
+                .buttonStyle(.plain)
+                // 露出していないときはタップされないよう無効化
+                .allowsHitTesting(isSwipeRevealed)
+                .opacity(effectiveOffset < -8 ? 1 : 0)
+            }
+
+            // 前面のカード本体
+            HStack(spacing: 12) {
+                if isSelectionMode {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.title3)
+                        .foregroundColor(isSelected ? .blue : .gray.opacity(0.5))
+                        .transition(.scale.combined(with: .opacity))
+                }
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(expense.title).font(.subheadline).bold().foregroundColor(.black)
+                        if !expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text(expense.note)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
+                        HStack(spacing: 6) {
+                            Text(expense.project)
+                                .font(.caption2)
+                                .foregroundColor(.gray)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(Color.gray.opacity(0.1))
+                                .cornerRadius(6)
+                            if expense.businessRatio < 1.0 {
+                                Text("\(Int(expense.businessRatio * 100))%")
+                                    .font(.caption2)
+                                    .foregroundColor(.orange)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3)
+                                    .background(Color.orange.opacity(0.1))
+                                    .cornerRadius(6)
+                            }
+                        }
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text("¥\(Int(expense.effectiveAmount).formatted())")
+                            .taxSuiteAmountStyle(size: 16, weight: .semibold, tracking: -0.2)
+                            .foregroundColor(.black)
+                        if expense.businessRatio < 1.0 {
+                            Text("全体: ¥\(Int(expense.amount))")
+                                .font(.caption2)
+                                .monospacedDigit()
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white)
+            .cornerRadius(15)
+            .shadow(color: .black.opacity(0.02), radius: 3, x: 0, y: 2)
+            .offset(x: effectiveOffset)
+            .animation(.spring(response: 0.28, dampingFraction: 0.85), value: isSwipeRevealed)
+            .animation(.spring(response: 0.28, dampingFraction: 0.85), value: isSelectionMode)
+            .gesture(swipeGesture)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onTap)
+            .onLongPressGesture(minimumDuration: 0.45) {
+                let generator = UIImpactFeedbackGenerator(style: .medium)
+                generator.impactOccurred()
+                onLongPress()
+            }
+        }
+    }
+
+    // 選択モード中はドラッグを無効化するため、ハンドラ内で early return する。
+    private var swipeGesture: some Gesture {
+        DragGesture(minimumDistance: 12, coordinateSpace: .local)
+            .onChanged { value in
+                guard !isSelectionMode else { return }
+                // 水平方向が主体のときだけ処理（縦スクロールとの両立）
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                dragOffset = value.translation.width
+            }
+            .onEnded { value in
+                defer { dragOffset = 0 }
+                guard !isSelectionMode else { return }
+                let horizontal = value.translation.width
+                guard abs(horizontal) > abs(value.translation.height) else { return }
+
+                if horizontal < -revealThreshold {
+                    onSwipeReveal()
+                } else if horizontal > revealThreshold, isSwipeRevealed {
+                    onSwipeReset()
+                } else if !isSwipeRevealed {
+                    // しきい値未満の左スワイプは元に戻す
+                    onSwipeReset()
+                }
+            }
     }
 }
 
