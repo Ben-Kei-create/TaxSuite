@@ -44,6 +44,15 @@ struct AnalyticsView: View {
 
     @State private var selectedRange: AnalyticsRange = .month
     @State private var animatedData: [CategorySum]   = []
+    // 分析対象の基準日。カレンダー画面と同様にユーザーが任意の年月日へ変更できるようにする。
+    @State private var referenceDate: Date = Date()
+    @State private var showingRangePicker = false
+
+    private var analyticsCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "ja_JP")
+        return calendar
+    }
 
     // MARK: Stored accessors
 
@@ -54,7 +63,12 @@ struct AnalyticsView: View {
     // MARK: Filtered base data
 
     private var filteredExpenses: [ExpenseItem] {
-        expenses.filter { selectedRange.contains($0.timestamp, reference: Date()) }
+        expenses.filter { selectedRange.contains($0.timestamp, reference: referenceDate) }
+    }
+
+    // 分析表示のタイトル。参照日が「今日」の範囲内ならば「今日/今週/今月」、そうでなければ具体的な日付を表示する。
+    private var rangeTitle: String {
+        selectedRange.title(for: referenceDate, calendar: analyticsCalendar)
     }
     private var subscriptionExpenses: [ExpenseItem] { filteredExpenses.filter(\.isSubscription) }
     private var variableExpenses: [ExpenseItem]     { filteredExpenses.filter { !$0.isSubscription } }
@@ -115,7 +129,8 @@ struct AnalyticsView: View {
             selectedRange.rawValue,
             analyticsAxisRaw,
             String(filteredExpenses.count),
-            String(format: "%.0f", totalSpent)
+            String(format: "%.0f", totalSpent),
+            ISO8601DateFormatter().string(from: referenceDate)
         ].joined(separator: "|")
     }
 
@@ -140,6 +155,9 @@ struct AnalyticsView: View {
                 }
             }
             .navigationTitle("分析")
+            .sheet(isPresented: $showingRangePicker) {
+                rangePickerSheet
+            }
         }
     }
 
@@ -159,11 +177,14 @@ struct AnalyticsView: View {
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal, 20)
+
+                rangeNavigator
+                    .padding(.horizontal, 20)
             }
             .padding(.top, 8)
 
             Spacer()
-            Text("\(selectedRange.title)のデータがありません")
+            Text("\(rangeTitle)のデータがありません")
                 .foregroundColor(.gray)
             Spacer()
         }
@@ -184,6 +205,95 @@ struct AnalyticsView: View {
             }
             .pickerStyle(.segmented)
             .padding(.vertical, 4)
+
+            rangeNavigator
+                .padding(.vertical, 4)
+        }
+    }
+
+    // 参照日を前後に移動するナビゲータ。中央のラベルをタップで任意の年月日を選択できる。
+    private var rangeNavigator: some View {
+        HStack(spacing: 8) {
+            Button(action: { shiftReferenceDate(by: -1) }) {
+                Image(systemName: "chevron.left")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(.black)
+                    .frame(width: 32, height: 32)
+                    .background(Color.black.opacity(0.05))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            Button(action: { showingRangePicker = true }) {
+                HStack(spacing: 4) {
+                    Text(rangeTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.black)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2.weight(.bold))
+                        .foregroundColor(.black.opacity(0.6))
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("対象期間を選択")
+
+            Spacer()
+
+            Button(action: { shiftReferenceDate(by: 1) }) {
+                Image(systemName: "chevron.right")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(.black)
+                    .frame(width: 32, height: 32)
+                    .background(Color.black.opacity(0.05))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            // 未来方向への移動は、基準日が今日と同じ期間なら制限する
+            .disabled(isAtOrBeyondToday)
+            .opacity(isAtOrBeyondToday ? 0.4 : 1.0)
+        }
+    }
+
+    // 未来の期間には進めないようにするための判定
+    private var isAtOrBeyondToday: Bool {
+        selectedRange.contains(Date(), reference: referenceDate, calendar: analyticsCalendar)
+    }
+
+    // 選択中の粒度で前後へシフトする
+    private func shiftReferenceDate(by value: Int) {
+        let component: Calendar.Component
+        switch selectedRange {
+        case .day:   component = .day
+        case .week:  component = .weekOfYear
+        case .month: component = .month
+        }
+        if let shifted = analyticsCalendar.date(byAdding: component, value: value, to: referenceDate) {
+            referenceDate = shifted
+        }
+    }
+
+    // 選択中の粒度に応じて日付または年月ピッカーを表示する
+    @ViewBuilder
+    private var rangePickerSheet: some View {
+        switch selectedRange {
+        case .month:
+            MonthYearPickerSheet(
+                initialMonth: referenceDate,
+                calendar: analyticsCalendar
+            ) { picked in
+                referenceDate = picked
+            }
+            .presentationDetents([.medium])
+        case .day, .week:
+            AnalyticsDatePickerSheet(
+                initialDate: referenceDate,
+                title: selectedRange == .day ? "日付を選択" : "週を選択"
+            ) { picked in
+                referenceDate = picked
+            }
+            .presentationDetents([.medium])
         }
     }
 
@@ -191,7 +301,7 @@ struct AnalyticsView: View {
         Section(header: Text("概要").taxSuiteListHeaderStyle()) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(selectedRange.title + "の合計支出")
+                    Text(rangeTitle + "の合計支出")
                         .font(.subheadline.weight(.semibold))
                         .foregroundColor(.black)
                     Text("\(filteredExpenses.count)件")
@@ -377,6 +487,57 @@ struct AnalyticsView: View {
             Circle().fill(tint).frame(width: 8, height: 8)
             Text(title).font(.caption).foregroundColor(.secondary)
             Text("¥\(Int(amount).formatted())").font(.caption.weight(.semibold)).foregroundColor(.black)
+        }
+    }
+}
+
+// 分析画面から日付（日別・週別）を選ぶための簡易シート。
+// 本日を上限とし、未来は選べないようにする。
+struct AnalyticsDatePickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let initialDate: Date
+    let title: String
+    let onPick: (Date) -> Void
+
+    @State private var selectedDate: Date
+
+    init(initialDate: Date, title: String, onPick: @escaping (Date) -> Void) {
+        self.initialDate = initialDate
+        self.title = title
+        self.onPick = onPick
+        _selectedDate = State(initialValue: initialDate)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack {
+                DatePicker(
+                    "",
+                    selection: $selectedDate,
+                    in: ...Date(),
+                    displayedComponents: [.date]
+                )
+                .datePickerStyle(.graphical)
+                .environment(\.locale, Locale(identifier: "ja_JP"))
+                .padding()
+
+                Spacer()
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("キャンセル") { dismiss() }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("表示") {
+                        onPick(selectedDate)
+                        dismiss()
+                    }
+                    .fontWeight(.bold)
+                }
+            }
         }
     }
 }

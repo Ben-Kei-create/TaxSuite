@@ -1069,6 +1069,7 @@ struct CalendarHistoryView: View {
     @State private var displayedMonth = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
     @State private var editingExpense: ExpenseItem?
     @State private var showingNewExpenseSheet = false
+    @State private var showingMonthPicker = false
 
     private let weekdaySymbols = ["日", "月", "火", "水", "木", "金", "土"]
 
@@ -1078,7 +1079,18 @@ struct CalendarHistoryView: View {
         return calendar
     }
 
-    var dailyExpenses: [ExpenseItem] { expenses.filter { calendar.isDate($0.timestamp, inSameDayAs: selectedDate) } }
+    // 同一日内では「追加した順に新しいものが上」になるよう、createdAt 降順でソート。
+    // createdAt が同一（旧データ）の場合は timestamp 降順でフォールバック。
+    var dailyExpenses: [ExpenseItem] {
+        expenses
+            .filter { calendar.isDate($0.timestamp, inSameDayAs: selectedDate) }
+            .sorted { lhs, rhs in
+                if lhs.createdAt != rhs.createdAt {
+                    return lhs.createdAt > rhs.createdAt
+                }
+                return lhs.timestamp > rhs.timestamp
+            }
+    }
     var dailyTotal: Double { dailyExpenses.reduce(0) { $0 + $1.effectiveAmount } }
 
     private var monthExpenses: [ExpenseItem] {
@@ -1198,6 +1210,18 @@ struct CalendarHistoryView: View {
             .sheet(isPresented: $showingNewExpenseSheet) {
                 ExpenseEditView(expense: nil, initialDate: selectedDate)
             }
+            // 年月選択ピッカー
+            .sheet(isPresented: $showingMonthPicker) {
+                MonthYearPickerSheet(
+                    initialMonth: displayedMonth,
+                    calendar: calendar
+                ) { picked in
+                    let newMonth = startOfMonth(for: picked)
+                    displayedMonth = newMonth
+                    selectedDate = preferredSelectionDate(in: newMonth)
+                }
+                .presentationDetents([.medium])
+            }
         }
     }
 
@@ -1216,14 +1240,25 @@ struct CalendarHistoryView: View {
 
                 Spacer()
 
-                VStack(spacing: 3) {
-                    Text(displayedMonthTitle)
-                        .font(.headline)
-                        .foregroundColor(.black)
-                    Text("黄=0円 / 緑=支出あり")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                // タイトルをタップすると年月ピッカーを表示し、任意の年月へ直接ジャンプできる
+                Button(action: { showingMonthPicker = true }) {
+                    VStack(spacing: 3) {
+                        HStack(spacing: 4) {
+                            Text(displayedMonthTitle)
+                                .font(.headline)
+                                .foregroundColor(.black)
+                            Image(systemName: "chevron.down")
+                                .font(.caption2.weight(.bold))
+                                .foregroundColor(.black.opacity(0.6))
+                        }
+                        Text("黄=0円 / 緑=支出あり")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("年月を選択")
+                .accessibilityHint("タップして年月を直接指定します")
 
                 Spacer()
 
@@ -1395,6 +1430,83 @@ struct CalendarHistoryView: View {
             modelContext.delete(dailyExpenses[index])
         }
         try? modelContext.save()
+    }
+}
+
+// 年月を直接選べるピッカー。カレンダー画面と分析画面の両方から利用する。
+struct MonthYearPickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let initialMonth: Date
+    let calendar: Calendar
+    let onPick: (Date) -> Void
+
+    // 選択肢は「今年の +1 年」から「2015年」までを降順で表示。
+    // 経費アプリの過去データを遡れる範囲として十分な幅を確保する。
+    private let yearRange: [Int]
+    private let monthRange: [Int] = Array(1...12)
+
+    @State private var selectedYear: Int
+    @State private var selectedMonth: Int
+
+    init(initialMonth: Date, calendar: Calendar, onPick: @escaping (Date) -> Void) {
+        self.initialMonth = initialMonth
+        self.calendar = calendar
+        self.onPick = onPick
+
+        let components = calendar.dateComponents([.year, .month], from: initialMonth)
+        let currentYear = calendar.component(.year, from: Date())
+        let startYear = min(components.year ?? currentYear, 2015)
+        let endYear = max(currentYear + 1, components.year ?? currentYear)
+        self.yearRange = Array((startYear...endYear).reversed())
+
+        _selectedYear = State(initialValue: components.year ?? currentYear)
+        _selectedMonth = State(initialValue: components.month ?? 1)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    Picker("年", selection: $selectedYear) {
+                        ForEach(yearRange, id: \.self) { year in
+                            Text("\(year)年").tag(year)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .frame(maxWidth: .infinity)
+
+                    Picker("月", selection: $selectedMonth) {
+                        ForEach(monthRange, id: \.self) { month in
+                            Text("\(month)月").tag(month)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .frame(maxWidth: .infinity)
+                }
+                .padding(.horizontal, 12)
+            }
+            .navigationTitle("年月を選択")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("キャンセル") { dismiss() }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("表示") {
+                        var components = DateComponents()
+                        components.year = selectedYear
+                        components.month = selectedMonth
+                        components.day = 1
+                        if let date = calendar.date(from: components) {
+                            onPick(date)
+                        }
+                        dismiss()
+                    }
+                    .fontWeight(.bold)
+                }
+            }
+        }
     }
 }
 

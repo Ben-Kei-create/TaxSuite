@@ -45,6 +45,9 @@ final class LocationTrigger {
 @Model
 final class ExpenseItem {
     var timestamp: Date = Date()
+    // 挿入順を保持するための追加日時。同日内で「追加した順に新しいものが上」を実現するために使用。
+    // 既存データがある場合はマイグレーション時に Date() が入るが、以降の新規追加は挿入時刻が入る。
+    var createdAt: Date = Date()
     var title: String = ""
     var amount: Double = 0
     var category: String = "未分類"
@@ -64,6 +67,7 @@ final class ExpenseItem {
         recurringExpenseID: String? = nil
     ) {
         self.timestamp = timestamp
+        self.createdAt = Date()
         self.title = title
         self.amount = amount
         self.category = category
@@ -388,6 +392,7 @@ enum AnalyticsRange: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    // 「今日/今週/今月」を表す既定タイトル。参照日が今日でない場合は `title(for:)` を利用する。
     var title: String {
         switch self {
         case .day:
@@ -396,6 +401,35 @@ enum AnalyticsRange: String, CaseIterable, Identifiable {
             return "今週"
         case .month:
             return "今月"
+        }
+    }
+
+    // 参照日を元にした表示用タイトルを返す。参照日が今日の範囲内なら既定タイトルを返す。
+    func title(for reference: Date, calendar: Calendar = .current) -> String {
+        if contains(Date(), reference: reference, calendar: calendar) {
+            return title
+        }
+
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "ja_JP")
+
+        switch self {
+        case .day:
+            formatter.dateFormat = "yyyy年M月d日"
+            return formatter.string(from: reference)
+        case .week:
+            let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: reference)?.start ?? reference
+            formatter.dateFormat = "M月d日"
+            let startLabel = formatter.string(from: startOfWeek)
+            if let endOfWeek = calendar.date(byAdding: .day, value: 6, to: startOfWeek) {
+                let endLabel = formatter.string(from: endOfWeek)
+                return "\(startLabel)〜\(endLabel)の週"
+            }
+            return "\(startLabel)の週"
+        case .month:
+            formatter.dateFormat = "yyyy年M月"
+            return formatter.string(from: reference)
         }
     }
 
