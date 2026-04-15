@@ -11,6 +11,10 @@ nonisolated enum TaxSuiteWidgetSupport {
     static let snapshotKey = "taxsuite_widget_snapshot_v1"
     static let defaultTaxRate = 0.2
     static let defaultProjectNames = ["メイン業", "副業", "その他"]
+    /// プロジェクトの最大登録数（デフォルト 3 + 追加枠 7）
+    static let maxProjectCount = 10
+    /// プロジェクトの最小登録数（常にデフォルト相当の 3 件は確保する）
+    static let minProjectCount = 3
 }
 
 nonisolated struct TaxSuiteWidgetSnapshot: Codable, Equatable {
@@ -248,28 +252,42 @@ nonisolated enum TaxSuiteWidgetStore {
 
     private nonisolated static func normalizedProjectNames(_ names: [String]) -> [String] {
         let defaults = TaxSuiteWidgetSupport.defaultProjectNames
+        let minCount = TaxSuiteWidgetSupport.minProjectCount
+        let maxCount = TaxSuiteWidgetSupport.maxProjectCount
+
         var normalized: [String] = []
         var seen = Set<String>()
 
-        for index in defaults.indices {
-            let rawValue = names.indices.contains(index) ? names[index] : ""
+        // 入力された名前を先頭から順に詰めていく（空欄・重複はスキップ）
+        for rawValue in names {
+            if normalized.count >= maxCount { break }
             let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            let fallback = defaults[index]
-            let preferred = trimmed.isEmpty ? fallback : trimmed
-            let preferredKey = normalizedProjectLookupKey(preferred)
+            guard !trimmed.isEmpty else { continue }
+            let key = normalizedProjectLookupKey(trimmed)
+            guard seen.insert(key).inserted else { continue }
+            normalized.append(trimmed)
+        }
 
-            if seen.insert(preferredKey).inserted {
-                normalized.append(preferred)
-                continue
-            }
-
+        // 最小件数に満たない分はデフォルト → 自動生成名で補う
+        var autoIndex = 1
+        while normalized.count < minCount {
+            let position = normalized.count
+            let fallback = defaults.indices.contains(position) ? defaults[position] : "プロジェクト\(position + 1)"
             let fallbackKey = normalizedProjectLookupKey(fallback)
             if seen.insert(fallbackKey).inserted {
                 normalized.append(fallback)
-            } else {
-                let generated = "プロジェクト\(index + 1)"
-                normalized.append(generated)
-                seen.insert(normalizedProjectLookupKey(generated))
+                continue
+            }
+
+            // デフォルト名が既に使われている → 連番でユニーク名を合成
+            while true {
+                let generated = "プロジェクト\(autoIndex)"
+                autoIndex += 1
+                let generatedKey = normalizedProjectLookupKey(generated)
+                if seen.insert(generatedKey).inserted {
+                    normalized.append(generated)
+                    break
+                }
             }
         }
 

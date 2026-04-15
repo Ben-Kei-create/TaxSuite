@@ -2570,7 +2570,7 @@ struct SettingsView: View {
                     }
                     Section(
                         header: Text("プロジェクト設定"),
-                        footer: Text("3つまで自由に変更できます。空欄は「メイン業 / 副業 / その他」に戻ります。")
+                        footer: Text("デフォルトの3つに加えて最大\(TaxSuiteWidgetSupport.maxProjectCount)個まで追加できます。名前は自由に変更でき、空欄は「メイン業 / 副業 / その他」に戻ります。")
                     ) {
                         ForEach(projectNameDrafts.indices, id: \.self) { index in
                             TextField("プロジェクト\(index + 1)", text: Binding(
@@ -2580,6 +2580,36 @@ struct SettingsView: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .onSubmit(saveProjectNames)
+                        }
+                        .onDelete { indexSet in
+                            deleteProjectRows(at: indexSet)
+                        }
+
+                        if projectNameDrafts.count < TaxSuiteWidgetSupport.maxProjectCount {
+                            Button {
+                                addProjectRow()
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "plus.circle.fill")
+                                        .foregroundColor(.blue)
+                                    Text("プロジェクトを追加")
+                                        .foregroundColor(.blue)
+                                    Spacer()
+                                    Text("\(projectNameDrafts.count) / \(TaxSuiteWidgetSupport.maxProjectCount)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        } else {
+                            HStack {
+                                Text("上限に達しました")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text("\(projectNameDrafts.count) / \(TaxSuiteWidgetSupport.maxProjectCount)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     }
                     Section(header: Text("固定費")) {
@@ -2806,8 +2836,36 @@ struct SettingsView: View {
         }
     }
 
+    private func addProjectRow() {
+        guard projectNameDrafts.count < TaxSuiteWidgetSupport.maxProjectCount else { return }
+        projectNameDrafts.append("")
+    }
+
+    private func deleteProjectRows(at offsets: IndexSet) {
+        // 最小件数（デフォルトの 3 件）を割らないように削除を制限する
+        let minCount = TaxSuiteWidgetSupport.minProjectCount
+        guard projectNameDrafts.count > minCount else { return }
+
+        let maxDeletable = projectNameDrafts.count - minCount
+        // 先頭から削除しても最小件数を保てる範囲だけ受け入れる
+        let sortedOffsets = Array(offsets).sorted()
+        let allowedOffsets = Array(sortedOffsets.prefix(maxDeletable))
+
+        var updated = projectNameDrafts
+        for offset in allowedOffsets.reversed() {
+            guard updated.indices.contains(offset) else { continue }
+            updated.remove(at: offset)
+        }
+        projectNameDrafts = updated
+        saveProjectNames()
+    }
+
     private func renamedProjectPairs(from previousNames: [String], to nextNames: [String]) -> [(old: String, new: String)] {
-        zip(previousNames, nextNames).compactMap { previousName, nextName in
+        // 追加・削除があった場合は位置ベースの比較で誤ったリネーム扱いになるので、
+        // 件数が一致する「インプレース編集」のときだけ位置比較を行う。
+        guard previousNames.count == nextNames.count else { return [] }
+
+        return zip(previousNames, nextNames).compactMap { previousName, nextName in
             let trimmedPrevious = previousName.trimmingCharacters(in: .whitespacesAndNewlines)
             let trimmedNext = nextName.trimmingCharacters(in: .whitespacesAndNewlines)
 
