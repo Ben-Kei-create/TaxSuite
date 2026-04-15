@@ -54,13 +54,18 @@ struct TaxSuiteWidgetView: View {
     // MARK: Small
 
     var smallView: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             widgetHeader
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("推定手取り")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 4) {
+                    Image(systemName: "yensign.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("推定手取り")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Text(currency(entry.snapshot.takeHome))
                     .font(.system(size: 28, weight: .bold, design: .rounded).monospacedDigit())
                     .lineLimit(1)
@@ -71,8 +76,8 @@ struct TaxSuiteWidgetView: View {
             progressBar
 
             HStack(spacing: 8) {
-                summaryPill(label: "今日", value: currency(entry.snapshot.todayExpensesTotal))
-                summaryPill(label: "最新", value: entry.snapshot.recentExpenseTitle ?? "未記録")
+                summaryPill(icon: "sun.max.fill", value: currency(entry.snapshot.todayExpensesTotal))
+                summaryPill(icon: "clock.fill", value: entry.snapshot.recentExpenseTitle ?? "未記録")
             }
         }
         .padding()
@@ -84,44 +89,54 @@ struct TaxSuiteWidgetView: View {
     // MARK: Medium
 
     var mediumView: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             widgetHeader
 
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
                 // 左パネル: 財務サマリー
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("今月の推定手取り")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "yensign.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text("推定手取り")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                     Text(currency(entry.snapshot.takeHome))
-                        .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
+                        .font(.system(size: 28, weight: .bold, design: .rounded).monospacedDigit())
                         .lineLimit(1)
                         .minimumScaleFactor(0.62)
                         .foregroundStyle(.primary)
 
                     progressBar
 
-                    VStack(spacing: 8) {
-                        compactMetricRow(label: "今日の支出",  value: currency(entry.snapshot.todayExpensesTotal))
-                        compactMetricRow(label: "今月の経費",  value: currency(entry.snapshot.currentMonthExpenses))
-                        compactMetricRow(label: "最新",       value: entry.snapshot.recentExpenseTitle ?? "未記録")
+                    VStack(spacing: 6) {
+                        compactMetricRow(icon: "sun.max.fill",    value: currency(entry.snapshot.todayExpensesTotal))
+                        compactMetricRow(icon: "calendar",        value: currency(entry.snapshot.currentMonthExpenses))
+                        compactMetricRow(icon: "clock.fill",      value: entry.snapshot.recentExpenseTitle ?? "未記録")
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
+                .padding(14)
                 .background(Color.white.opacity(0.62))
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
 
                 // 右パネル: 動的クイック追加ボタン（App Group から読み込み）
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("すぐ記録")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.leading, 2)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bolt.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text("すぐ記録")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.leading, 2)
 
                     LazyVGrid(
-                        columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
-                        spacing: 8
+                        columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)],
+                        spacing: 6
                     ) {
                         ForEach(entry.buttonSlots) { slot in
                             quickAddButton(slot: slot)
@@ -148,54 +163,110 @@ struct TaxSuiteWidgetView: View {
                 note: slot.note
             )
         ) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(slot.title.isEmpty ? "未設定" : slot.title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(slot.title.isEmpty ? .secondary : .primary)
-                    .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Image(systemName: iconName(for: slot))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(slot.title.isEmpty ? Color.secondary : Color.black.opacity(0.7))
+                    Text(slot.title.isEmpty ? "未設定" : slot.title)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(slot.title.isEmpty ? .secondary : .primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
                 Text(slot.amount > 0 ? currency(slot.amount) : "---")
-                    .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
+                    .font(.system(size: 13, weight: .bold, design: .rounded).monospacedDigit())
                     .foregroundStyle(slot.amount > 0 ? .primary : .secondary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(Color.white.opacity(0.88))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(Color.black.opacity(0.05), lineWidth: 1)
             )
-            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
-        .frame(minHeight: 56)
+        .frame(minHeight: 52)
         .disabled(slot.title.isEmpty || slot.amount <= 0)
+    }
+
+    /// カテゴリまたはタイトルから最適な SF Symbol 名を推定する
+    private func iconName(for slot: WidgetButtonSlot) -> String {
+        if slot.title.isEmpty { return "questionmark.circle" }
+        let title = slot.title
+        let category = slot.category
+
+        // タイトル優先のキーワードマッチ（よく使う固有表現）
+        let titleMap: [(String, String)] = [
+            ("カフェ",   "cup.and.saucer.fill"),
+            ("コーヒー", "cup.and.saucer.fill"),
+            ("スタバ",   "cup.and.saucer.fill"),
+            ("ランチ",   "fork.knife"),
+            ("昼食",     "fork.knife"),
+            ("夕食",     "fork.knife"),
+            ("電車",     "tram.fill"),
+            ("新幹線",   "tram.fill"),
+            ("バス",     "bus.fill"),
+            ("タクシー", "car.fill"),
+            ("ガソリン", "fuelpump.fill"),
+            ("書籍",     "book.fill"),
+            ("本",       "book.fill"),
+            ("消耗品",   "shippingbox.fill")
+        ]
+        for (keyword, icon) in titleMap where title.contains(keyword) {
+            return icon
+        }
+
+        // カテゴリへのフォールバック
+        switch category {
+        case "交通費":       return "tram.fill"
+        case "会議費":       return "cup.and.saucer.fill"
+        case "接待交際費":   return "wineglass.fill"
+        case "福利厚生費":   return "fork.knife"
+        case "通信費":       return "wifi"
+        case "消耗品費":     return "shippingbox.fill"
+        case "水道光熱費":   return "bolt.fill"
+        case "広告宣伝費":   return "megaphone.fill"
+        case "旅費交通費":   return "airplane"
+        case "新聞図書費":   return "book.fill"
+        case "支払手数料":   return "creditcard.fill"
+        case "租税公課":     return "building.columns.fill"
+        case "固定費":       return "arrow.triangle.2.circlepath"
+        case "未分類":       return "tag"
+        default:             return "yensign.circle.fill"
+        }
     }
 
     // MARK: - Shared sub-views
 
     private var widgetHeader: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("TaxSuite")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(entry.snapshot.monthLabel)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-            Spacer()
-            Text(progressLabel)
+        HStack(spacing: 6) {
+            Image(systemName: "chart.pie.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(entry.snapshot.monthLabel)
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(Color(red: 0.12, green: 0.33, blue: 0.18))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color(red: 0.88, green: 0.95, blue: 0.89))
-                .clipShape(Capsule())
+                .foregroundStyle(.tertiary)
+            Spacer()
+            HStack(spacing: 3) {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .font(.system(size: 9, weight: .bold))
+                Text(progressLabel)
+                    .font(.caption2.weight(.semibold))
+            }
+            .foregroundStyle(Color(red: 0.12, green: 0.33, blue: 0.18))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(Color(red: 0.88, green: 0.95, blue: 0.89))
+            .clipShape(Capsule())
         }
     }
 
@@ -231,29 +302,34 @@ struct TaxSuiteWidgetView: View {
         .frame(height: 10)
     }
 
-    private func compactMetricRow(label: String, value: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(label).font(.caption2).foregroundStyle(.secondary)
-            Spacer(minLength: 8)
+    private func compactMetricRow(icon: String, value: String) -> some View {
+        HStack(alignment: .center, spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 14, alignment: .leading)
             Text(value)
                 .font(.system(size: 12, weight: .semibold, design: .rounded).monospacedDigit())
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    private func summaryPill(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption2).foregroundStyle(.secondary)
+    private func summaryPill(icon: String, value: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             Text(value)
                 .font(.system(size: 12, weight: .semibold, design: .rounded).monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
         .background(Color.white.opacity(0.65))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
