@@ -1505,8 +1505,15 @@ struct CalendarHistoryView: View {
                                         }
                                         .padding(.vertical, 2)
                                     }
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                        Button(role: .destructive) {
+                                            deleteDailyExpense(expense)
+                                        } label: {
+                                            Label("削除", systemImage: "trash.fill")
+                                        }
+                                        .tint(.red)
+                                    }
                                 }
-                                .onDelete(perform: deleteDailyExpenses)
                             }
                         }
                     }
@@ -1745,6 +1752,11 @@ struct CalendarHistoryView: View {
         for index in offsets {
             modelContext.delete(dailyExpenses[index])
         }
+        try? modelContext.save()
+    }
+
+    private func deleteDailyExpense(_ expense: ExpenseItem) {
+        modelContext.delete(expense)
         try? modelContext.save()
     }
 }
