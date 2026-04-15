@@ -849,28 +849,7 @@ struct TodayExpenseRow: View {
 
     var body: some View {
         ZStack(alignment: .trailing) {
-            // 背面の削除アクション
-            if !isSelectionMode {
-                Button(action: onDelete) {
-                    VStack(spacing: 4) {
-                        Image(systemName: "trash.fill")
-                            .font(.title3)
-                        Text("削除")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .foregroundColor(.white)
-                    .frame(width: actionWidth)
-                    .frame(maxHeight: .infinity)
-                    .background(Color.red)
-                    .cornerRadius(15)
-                }
-                .buttonStyle(.plain)
-                // 露出していないときはタップされないよう無効化
-                .allowsHitTesting(isSwipeRevealed)
-                .opacity(effectiveOffset < -8 ? 1 : 0)
-            }
-
-            // 前面のカード本体
+            // カード本体（背面）— 左にオフセットして削除ボタンを露出
             HStack(spacing: 12) {
                 if isSelectionMode {
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
@@ -938,6 +917,27 @@ struct TodayExpenseRow: View {
                 let generator = UIImpactFeedbackGenerator(style: .medium)
                 generator.impactOccurred()
                 onLongPress()
+            }
+
+            // 削除ボタン（前面）— カードのタップが優先されないよう最後に重ねる
+            if !isSelectionMode {
+                Button(action: onDelete) {
+                    VStack(spacing: 4) {
+                        Image(systemName: "trash.fill")
+                            .font(.title3)
+                        Text("削除")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(width: actionWidth)
+                    .frame(maxHeight: .infinity)
+                    .background(Color.red)
+                    .cornerRadius(15)
+                }
+                .buttonStyle(.plain)
+                // 露出していないときはタップされないよう無効化
+                .allowsHitTesting(isSwipeRevealed)
+                .opacity(effectiveOffset < -8 ? 1 : 0)
             }
         }
     }
