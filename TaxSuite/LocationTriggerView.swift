@@ -225,6 +225,11 @@ struct LocationTriggerEditView: View {
     @State private var isSearching = false
     @State private var showingSearchResults = false
 
+    // 登録前の確認ダイアログ
+    @State private var showingSaveConfirmation = false
+    // 登録完了トースト
+    @State private var showingSavedToast = false
+
     private let categoryOptions = ExpenseAutofillPredictor.defaultCategories
     private let projectOptions  = ExpenseAutofillPredictor.defaultProjects
 
@@ -362,13 +367,53 @@ struct LocationTriggerEditView: View {
                     Button("キャンセル") { dismiss() }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存", action: save)
+                    Button("保存") { showingSaveConfirmation = true }
                         .fontWeight(.bold)
                         .disabled(name.isEmpty)
                 }
             }
+            .alert(trigger == nil ? "この内容で登録しますか？" : "この内容で更新しますか？",
+                   isPresented: $showingSaveConfirmation) {
+                Button(trigger == nil ? "登録する" : "更新する") { save() }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text(saveConfirmationMessage)
+            }
+            .overlay(alignment: .top) {
+                if showingSavedToast {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text(trigger == nil ? "ジオフェンスを登録しました" : "ジオフェンスを更新しました")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.white)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.black.opacity(0.85))
+                    .clipShape(Capsule())
+                    .shadow(radius: 6)
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
             .onAppear(perform: configureOnAppear)
         }
+    }
+
+    private var saveConfirmationMessage: String {
+        var lines: [String] = []
+        lines.append("名前: \(name.isEmpty ? "（名前なし）" : name)")
+        lines.append(String(format: "半径: %d m", Int(radius)))
+        lines.append(String(format: "座標: %.5f, %.5f", pinCoordinate.latitude, pinCoordinate.longitude))
+        if let amount = Double(defaultAmount), amount > 0 {
+            lines.append("金額のデフォルト: ¥\(Int(amount).formatted())")
+        }
+        lines.append("カテゴリ: \(defaultCategory)")
+        lines.append("プロジェクト: \(defaultProject)")
+        lines.append("")
+        lines.append("登録すると、この場所への到着時に通知が届きます。位置情報の利用許可が必要です。")
+        return lines.joined(separator: "\n")
     }
 
     // MARK: - Actions
@@ -468,7 +513,14 @@ struct LocationTriggerEditView: View {
         }
 
         try? modelContext.save()
-        dismiss()
+
+        // 登録完了のフィードバック → 少し表示してから閉じる
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            showingSavedToast = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            dismiss()
+        }
     }
 }
 
