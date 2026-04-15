@@ -220,7 +220,7 @@ struct DashboardView: View {
                     .simultaneousGesture(
                         TapGesture().onEnded {
                             if swipeRevealedExpenseID != nil {
-                                withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
                                     swipeRevealedExpenseID = nil
                                 }
                             }
@@ -739,13 +739,13 @@ struct DashboardView: View {
                                 }
                             },
                             onSwipeReveal: {
-                                withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
                                     swipeRevealedExpenseID = expense.persistentModelID
                                 }
                             },
                             onSwipeReset: {
                                 if swipeRevealedExpenseID == expense.persistentModelID {
-                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                                    withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
                                         swipeRevealedExpenseID = nil
                                     }
                                 }
@@ -910,8 +910,8 @@ struct TodayExpenseRow: View {
             .cornerRadius(15)
             .shadow(color: .black.opacity(0.02), radius: 3, x: 0, y: 2)
             .offset(x: effectiveOffset)
-            .animation(.spring(response: 0.22, dampingFraction: 0.82), value: isSwipeRevealed)
-            .animation(.spring(response: 0.22, dampingFraction: 0.82), value: isSelectionMode)
+            .animation(.spring(response: 0.32, dampingFraction: 0.86), value: isSwipeRevealed)
+            .animation(.spring(response: 0.32, dampingFraction: 0.86), value: isSelectionMode)
             .gesture(swipeGesture)
             .contentShape(Rectangle())
             .onTapGesture(perform: onTap)
@@ -922,31 +922,27 @@ struct TodayExpenseRow: View {
             }
 
             // 削除ボタン（前面）— カードのタップが優先されないよう最後に重ねる
-            // カレンダー側の `.swipeActions` と同じ見え方になるよう、右端だけ角丸にして
-            // カードの縁と地続きに見せる。幅やアイコンサイズも iOS 標準に寄せる。
+            // iOS 標準の `.swipeActions` と同じように、カード右端から少し浮いた
+            // 丸ボタン風に仕上げる（カレンダー側の見た目と統一）。
             if !isSelectionMode {
                 Button(action: onDelete) {
                     VStack(spacing: 3) {
                         Image(systemName: "trash.fill")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.system(size: 16, weight: .semibold))
                         Text("削除")
                             .font(.caption2.weight(.semibold))
                     }
                     .foregroundColor(.white)
-                    .frame(width: actionWidth)
-                    .frame(maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(
-                        UnevenRoundedRectangle(
-                            topLeadingRadius: 0,
-                            bottomLeadingRadius: 0,
-                            bottomTrailingRadius: 15,
-                            topTrailingRadius: 15,
-                            style: .continuous
-                        )
-                        .fill(Color.red)
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(Color.red)
                     )
+                    .padding(.vertical, 6)
+                    .padding(.trailing, 4)
                 }
                 .buttonStyle(.plain)
+                .frame(width: actionWidth)
                 // 露出していないときはタップされないよう無効化
                 .allowsHitTesting(isSwipeRevealed)
                 .opacity(effectiveOffset < -8 ? 1 : 0)
@@ -964,24 +960,36 @@ struct TodayExpenseRow: View {
                 dragOffset = value.translation.width
             }
             .onEnded { value in
-                defer { dragOffset = 0 }
-                guard !isSelectionMode else { return }
+                guard !isSelectionMode else {
+                    dragOffset = 0
+                    return
+                }
                 let horizontal = value.translation.width
                 let predicted = value.predictedEndTranslation.width
-                guard abs(horizontal) > abs(value.translation.height) else { return }
+                guard abs(horizontal) > abs(value.translation.height) else {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                        dragOffset = 0
+                    }
+                    return
+                }
 
                 // 位置（距離）または速度（予測終点）のいずれかが左方向に十分なら露出確定
                 let shouldReveal = horizontal < -revealThreshold || predicted < -velocityCommitThreshold
                 // 右方向は、露出中のみリセットに倒す。距離でも速度でも判定。
                 let shouldReset = horizontal > revealThreshold || predicted > velocityCommitThreshold
 
-                if shouldReveal {
-                    onSwipeReveal()
-                } else if shouldReset, isSwipeRevealed {
-                    onSwipeReset()
-                } else if !isSwipeRevealed {
-                    // しきい値未満の左スワイプは元に戻す
-                    onSwipeReset()
+                // dragOffset のゼロ復帰と親コールバックを同じスプリングで駆動し、
+                // finger リリース時のスナップをヌルッと繋げる。
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                    dragOffset = 0
+                    if shouldReveal {
+                        onSwipeReveal()
+                    } else if shouldReset, isSwipeRevealed {
+                        onSwipeReset()
+                    } else if !isSwipeRevealed {
+                        // しきい値未満の左スワイプは元に戻す
+                        onSwipeReset()
+                    }
                 }
             }
     }
