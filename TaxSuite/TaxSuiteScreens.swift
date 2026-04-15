@@ -833,10 +833,12 @@ struct TodayExpenseRow: View {
 
     @State private var dragOffset: CGFloat = 0
 
-    // 削除ボタン領域の幅。iOS 標準のスワイプアクションに近い幅を採用。
-    private let actionWidth: CGFloat = 84
+    // 削除ボタン領域の幅。iOS 標準のスワイプアクションのコンパクトさに合わせる。
+    private let actionWidth: CGFloat = 74
     // これ以上スワイプしたら「確定」として露出状態にスナップする閾値
-    private let revealThreshold: CGFloat = 40
+    private let revealThreshold: CGFloat = 36
+    // 速度を考慮したスワイプ確定の閾値（予測終点の移動量）
+    private let velocityCommitThreshold: CGFloat = 160
 
     // スワイプ・選択モードを考慮した最終的な水平オフセット
     private var effectiveOffset: CGFloat {
@@ -908,8 +910,8 @@ struct TodayExpenseRow: View {
             .cornerRadius(15)
             .shadow(color: .black.opacity(0.02), radius: 3, x: 0, y: 2)
             .offset(x: effectiveOffset)
-            .animation(.spring(response: 0.28, dampingFraction: 0.85), value: isSwipeRevealed)
-            .animation(.spring(response: 0.28, dampingFraction: 0.85), value: isSelectionMode)
+            .animation(.spring(response: 0.22, dampingFraction: 0.82), value: isSwipeRevealed)
+            .animation(.spring(response: 0.22, dampingFraction: 0.82), value: isSelectionMode)
             .gesture(swipeGesture)
             .contentShape(Rectangle())
             .onTapGesture(perform: onTap)
@@ -920,19 +922,29 @@ struct TodayExpenseRow: View {
             }
 
             // 削除ボタン（前面）— カードのタップが優先されないよう最後に重ねる
+            // カレンダー側の `.swipeActions` と同じ見え方になるよう、右端だけ角丸にして
+            // カードの縁と地続きに見せる。幅やアイコンサイズも iOS 標準に寄せる。
             if !isSelectionMode {
                 Button(action: onDelete) {
-                    VStack(spacing: 4) {
+                    VStack(spacing: 3) {
                         Image(systemName: "trash.fill")
-                            .font(.title3)
+                            .font(.system(size: 15, weight: .semibold))
                         Text("削除")
-                            .font(.caption.weight(.semibold))
+                            .font(.caption2.weight(.semibold))
                     }
                     .foregroundColor(.white)
                     .frame(width: actionWidth)
                     .frame(maxHeight: .infinity)
-                    .background(Color.red)
-                    .cornerRadius(15)
+                    .background(
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: 0,
+                            bottomLeadingRadius: 0,
+                            bottomTrailingRadius: 15,
+                            topTrailingRadius: 15,
+                            style: .continuous
+                        )
+                        .fill(Color.red)
+                    )
                 }
                 .buttonStyle(.plain)
                 // 露出していないときはタップされないよう無効化
@@ -955,11 +967,17 @@ struct TodayExpenseRow: View {
                 defer { dragOffset = 0 }
                 guard !isSelectionMode else { return }
                 let horizontal = value.translation.width
+                let predicted = value.predictedEndTranslation.width
                 guard abs(horizontal) > abs(value.translation.height) else { return }
 
-                if horizontal < -revealThreshold {
+                // 位置（距離）または速度（予測終点）のいずれかが左方向に十分なら露出確定
+                let shouldReveal = horizontal < -revealThreshold || predicted < -velocityCommitThreshold
+                // 右方向は、露出中のみリセットに倒す。距離でも速度でも判定。
+                let shouldReset = horizontal > revealThreshold || predicted > velocityCommitThreshold
+
+                if shouldReveal {
                     onSwipeReveal()
-                } else if horizontal > revealThreshold, isSwipeRevealed {
+                } else if shouldReset, isSwipeRevealed {
                     onSwipeReset()
                 } else if !isSwipeRevealed {
                     // しきい値未満の左スワイプは元に戻す
