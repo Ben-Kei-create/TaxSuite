@@ -299,8 +299,8 @@ struct ScannedReceiptReviewView: View {
     /// スキップ（この1枚を無視して次へ進む）
     var onSkip: () -> Void
     /// 何枚目 / 合計枚数（進捗表示用）
-    var queueIndex: Int = 0
-    var queueTotal: Int = 1
+    var queueIndex: Int      // 🌟「= 0」を削除
+    var queueTotal: Int      // 🌟「= 1」を削除
 
     @State private var title: String
     @State private var amountText: String
@@ -309,32 +309,54 @@ struct ScannedReceiptReviewView: View {
     @State private var project: String
     @State private var businessRatio: Double
     @State private var note: String
-    @State private var showRawText = false
-    @State private var rawTextCopied = false
-
+    
+    // 🌟「= false」を削除し、「: Bool」にしました
+    @State private var showRawText: Bool
+    @State private var rawTextCopied: Bool
     @State private var suggestion: ExpenseAutofillSuggestion?
-    @State private var hasManualCategoryOverride = false
-    @State private var hasManualProjectOverride = false
-    @State private var isApplyingSuggestion = false
+    @State private var hasManualCategoryOverride: Bool
+    @State private var hasManualProjectOverride: Bool
+    @State private var isApplyingSuggestion: Bool
 
     private let categoryOptions = ExpenseAutofillPredictor.defaultCategories
     private var projectOptions: [String] {
         TaxSuiteWidgetStore.projectNameOptions(including: expenseHistory.map(\.project) + [project])
     }
 
-    init(parsed: ParsedReceipt) {
+    init(
+        parsed: ParsedReceipt,
+        onConfirmed: @escaping (ReceiptBatchDraft) -> Void,
+        onSkip: @escaping () -> Void,
+        queueIndex: Int = 0,
+        queueTotal: Int = 1
+    ) {
+        // 親から渡されたアクションをセット
         self.parsed = parsed
+        self.onConfirmed = onConfirmed
+        self.onSkip = onSkip
+        self.queueIndex = queueIndex
+        self.queueTotal = queueTotal
+        
+        // 値の初期化
         _title = State(initialValue: parsed.suggestedTitle)
         _amountText = State(initialValue: parsed.amount.map { String(Int($0)) } ?? "")
-        // 常に「今日」をデフォルトにする（OCR 日付は参考表示のみ）
-        _date = State(initialValue: Date())
+        _date = State(initialValue: Date()) // 常に「今日」をデフォルト
         _category = State(initialValue: "未分類")
         _project = State(initialValue: TaxSuiteWidgetStore.fallbackProjectName())
         _businessRatio = State(initialValue: 1.0)
         _note = State(initialValue: "")
+        
+        // コンパイルを通すために残りの変数の初期化も明記
+        _showRawText = State(initialValue: false)
+        _rawTextCopied = State(initialValue: false)
+        _suggestion = State(initialValue: nil)
+        _hasManualCategoryOverride = State(initialValue: false)
+        _hasManualProjectOverride = State(initialValue: false)
+        _isApplyingSuggestion = State(initialValue: false)
     }
 
     var body: some View {
+// --- これより下の body の中身はそのまま変更しないでください ---
         NavigationStack {
             TaxSuiteScreenSurface {
                 Form {
