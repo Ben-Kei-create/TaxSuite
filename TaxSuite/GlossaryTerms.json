@@ -16,6 +16,12 @@
       ],
       "related_ids": [
         "calendar-year-tax"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.4103 相続時精算課税の選択",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/sozoku/4103.htm"
+        }
       ]
     },
     {
@@ -32,6 +38,12 @@
       ],
       "related_ids": [
         "inheritance-tax-settlement-system"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.4402 贈与税がかかる場合",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/zoyo/4402.htm"
+        }
       ]
     },
     {
@@ -48,6 +60,12 @@
       ],
       "related_ids": [
         "salary-income"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 定額減税特設サイト",
+          "url": "https://www.nta.go.jp/users/gensen/teigakugenzei/index.htm"
+        }
       ]
     },
     {
@@ -66,6 +84,12 @@
         "incorporation",
         "corporate-resident-tax",
         "corporate-enterprise-tax"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.5759 法人税の税率",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/hojin/5759.htm"
+        }
       ]
     },
     {
@@ -83,6 +107,12 @@
       "related_ids": [
         "corporate-tax",
         "incorporation"
+      ],
+      "sources": [
+        {
+          "title": "総務省 地方税制度",
+          "url": "https://www.soumu.go.jp/main_sosiki/jichi_zeisei/czaisei/czaisei_seido/ichiran02.html"
+        }
       ]
     },
     {
@@ -99,6 +129,12 @@
       "related_ids": [
         "corporate-tax",
         "corporate-resident-tax"
+      ],
+      "sources": [
+        {
+          "title": "総務省 法人事業税",
+          "url": "https://www.soumu.go.jp/main_sosiki/jichi_zeisei/czaisei/czaisei_seido/ichiran02_02.html"
+        }
       ]
     },
     {
@@ -134,6 +170,12 @@
       "related_ids": [
         "miscellaneous-income",
         "incorporation"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.1350 事業所得の課税のしくみ",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1350.htm"
+        }
       ]
     },
     {
@@ -151,6 +193,12 @@
       "related_ids": [
         "business-income",
         "cryptocurrency-tax"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.1500 雑所得",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1500.htm"
+        }
       ]
     },
     {
@@ -167,6 +215,12 @@
       ],
       "related_ids": [
         "business-income"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.1370 不動産収入を受け取ったとき（不動産所得）",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1370.htm"
+        }
       ]
     },
     {
@@ -182,6 +236,12 @@
       ],
       "related_ids": [
         "business-income"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.1460 譲渡所得の計算のしかた",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/joto/1460.htm"
+        }
       ]
     },
     {
@@ -199,6 +259,12 @@
       "related_ids": [
         "employment-income-deduction",
         "incorporation"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.1400 給与所得",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1400.htm"
+        }
       ]
     },
     {
@@ -215,6 +281,12 @@
       ],
       "related_ids": [
         "salary-income"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.1410 給与所得控除",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1410.htm"
+        }
       ]
     },
     {
@@ -231,6 +303,12 @@
       "related_ids": [
         "dependent-deduction",
         "spouse-deduction"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.1120 医療費を支払ったとき",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1120.htm"
+        }
       ]
     },
     {
@@ -247,6 +325,12 @@
       ],
       "related_ids": [
         "dependent-deduction"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.1191 配偶者控除",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1191.htm"
+        }
       ]
     },
     {
@@ -263,6 +347,12 @@
       "related_ids": [
         "spouse-deduction",
         "specific-relative-deduction"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.1180 扶養控除",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1180.htm"
+        }
       ]
     },
     {
@@ -278,6 +368,12 @@
       ],
       "related_ids": [
         "dependent-deduction"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.1180 扶養控除",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1180.htm"
+        }
       ]
     },
     {
@@ -294,6 +390,12 @@
       ],
       "related_ids": [
         "management-safety-mutual-relief"
+      ],
+      "sources": [
+        {
+          "title": "中小機構 小規模企業共済",
+          "url": "https://www.smrj.go.jp/kyosai/skyosai/"
+        }
       ]
     },
     {
@@ -310,6 +412,12 @@
       ],
       "related_ids": [
         "small-enterprise-mutual-relief"
+      ],
+      "sources": [
+        {
+          "title": "中小機構 経営セーフティ共済",
+          "url": "https://www.smrj.go.jp/kyosai/tkyosai/"
+        }
       ]
     },
     {
@@ -327,6 +435,12 @@
       "related_ids": [
         "miscellaneous-income",
         "capital-gains"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 暗号資産等に関する税務上の取扱い",
+          "url": "https://www.nta.go.jp/publication/pamph/shotoku/kakuteishinkokukankei/kiso/faq/03.htm"
+        }
       ]
     },
     {
@@ -343,6 +457,12 @@
       ],
       "related_ids": [
         "additional-tax-for-understatement"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.2024 確定申告を忘れたとき",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2024.htm"
+        }
       ]
     },
     {
@@ -359,6 +479,12 @@
       ],
       "related_ids": [
         "additional-tax-for-non-filing"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 加算税の概要",
+          "url": "https://www.nta.go.jp/publication/pamph/koho/kurashi/html/06_3.htm"
+        }
       ]
     },
     {
@@ -376,6 +502,12 @@
       "related_ids": [
         "automobile-tax",
         "corporate-resident-tax"
+      ],
+      "sources": [
+        {
+          "title": "総務省 固定資産税",
+          "url": "https://www.soumu.go.jp/main_sosiki/jichi_zeisei/czaisei/czaisei_seido/kotei.html"
+        }
       ]
     },
     {
@@ -392,6 +524,12 @@
       ],
       "related_ids": [
         "fixed-asset-tax"
+      ],
+      "sources": [
+        {
+          "title": "総務省 自動車関係税制",
+          "url": "https://www.soumu.go.jp/main_sosiki/jichi_zeisei/czaisei/czaisei_seido/ichiran09.html"
+        }
       ]
     },
     {
@@ -409,6 +547,12 @@
       "related_ids": [
         "employment-income-deduction",
         "spouse-deduction"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.2075 青色事業専従者給与と事業専従者控除",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2075.htm"
+        }
       ]
     },
     {
@@ -425,6 +569,12 @@
       ],
       "related_ids": [
         "business-income"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 短期の前払費用の取扱い",
+          "url": "https://www.nta.go.jp/law/tsutatsu/kihon/hojin/02/02_02_14.htm"
+        }
       ]
     },
     {
@@ -441,6 +591,12 @@
       ],
       "related_ids": [
         "flat-rate-tax-reduction"
+      ],
+      "sources": [
+        {
+          "title": "総務省 ふるさと納税ワンストップ特例制度",
+          "url": "https://www.soumu.go.jp/main_sosiki/jichi_zeisei/czaisei/czaisei_seido/furusato/mechanism/deduction.html"
+        }
       ]
     },
     {
@@ -459,6 +615,12 @@
         "final-tax-return",
         "resident-tax",
         "income-deduction"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.2260 所得税の税率",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2260.htm"
+        }
       ]
     },
     {
@@ -476,6 +638,12 @@
       "related_ids": [
         "income-tax",
         "final-tax-return"
+      ],
+      "sources": [
+        {
+          "title": "総務省 個人住民税",
+          "url": "https://www.soumu.go.jp/main_sosiki/jichi_zeisei/czaisei/czaisei_seido/individual-inhabitant-tax.html"
+        }
       ]
     },
     {
@@ -493,6 +661,12 @@
       "related_ids": [
         "invoice-system",
         "final-tax-return"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 消費税のしくみ",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shohi/6101.htm"
+        }
       ]
     },
     {
@@ -510,6 +684,12 @@
       "related_ids": [
         "income-tax",
         "final-tax-return"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 源泉徴収のしかた",
+          "url": "https://www.nta.go.jp/publication/pamph/gensen/nencho2023/01.htm"
+        }
       ]
     },
     {
@@ -527,6 +707,12 @@
       "related_ids": [
         "income-deduction",
         "resident-tax"
+      ],
+      "sources": [
+        {
+          "title": "総務省 ふるさと納税ポータルサイト",
+          "url": "https://www.soumu.go.jp/main_sosiki/jichi_zeisei/czaisei/czaisei_seido/furusato/"
+        }
       ]
     },
     {
@@ -544,6 +730,12 @@
       "related_ids": [
         "income-tax",
         "final-tax-return"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.2040 予定納税",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2040.htm"
+        }
       ]
     },
     {
@@ -561,6 +753,12 @@
       "related_ids": [
         "resident-tax",
         "income-tax"
+      ],
+      "sources": [
+        {
+          "title": "東京都主税局 個人事業税",
+          "url": "https://www.tax.metro.tokyo.lg.jp/kazei/kojin_ji.html"
+        }
       ]
     },
     {
@@ -578,6 +776,12 @@
       "related_ids": [
         "income-tax",
         "withholding-tax"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 復興特別所得税の源泉徴収",
+          "url": "https://www.nta.go.jp/publication/pamph/gensen/fukko_tokubetsu.htm"
+        }
       ]
     },
     {
@@ -596,6 +800,12 @@
         "income-tax",
         "blue-tax-return",
         "white-tax-return"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 確定申告特集",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/shinkoku/tokushu/index.htm"
+        }
       ]
     },
     {
@@ -614,6 +824,12 @@
         "final-tax-return",
         "blue-return-special-deduction",
         "e-tax"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.2070 青色申告制度",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2070.htm"
+        }
       ]
     },
     {
@@ -631,6 +847,12 @@
       "related_ids": [
         "final-tax-return",
         "blue-tax-return"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 記帳・帳簿等の保存制度",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/shinkoku/kojin_jigyo/kichou.htm"
+        }
       ]
     },
     {
@@ -648,6 +870,12 @@
       "related_ids": [
         "final-tax-return",
         "income-tax"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.2210 必要経費の知識",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2210.htm"
+        }
       ]
     },
     {
@@ -665,6 +893,12 @@
       "related_ids": [
         "basic-deduction",
         "furusato-nozei"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.1100 所得控除のあらまし",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1100.htm"
+        }
       ]
     },
     {
@@ -682,6 +916,12 @@
       "related_ids": [
         "income-deduction",
         "income-tax"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.1199 基礎控除",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1199.htm"
+        }
       ]
     },
     {
@@ -700,6 +940,12 @@
         "blue-tax-return",
         "e-tax",
         "electronic-record-retention-law"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.2072 青色申告特別控除",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2072.htm"
+        }
       ]
     },
     {
@@ -717,6 +963,12 @@
       "related_ids": [
         "final-tax-return",
         "blue-return-special-deduction"
+      ],
+      "sources": [
+        {
+          "title": "e-Tax 国税電子申告・納税システム",
+          "url": "https://www.e-tax.nta.go.jp/"
+        }
       ]
     },
     {
@@ -734,6 +986,12 @@
       "related_ids": [
         "business-expense",
         "invoice-system"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 電子帳簿等保存制度特設サイト",
+          "url": "https://www.nta.go.jp/law/joho-zeikaishaku/sonota/jirei/index.htm"
+        }
       ]
     },
     {
@@ -750,6 +1008,12 @@
       ],
       "related_ids": [
         "consumption-tax"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 インボイス制度特設サイト",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/zeimokubetsu/shohi/keigenzeiritsu/invoice.htm"
+        }
       ]
     },
     {
@@ -767,6 +1031,12 @@
       "related_ids": [
         "final-tax-return",
         "income-tax"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.2250 損益通算",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2250.htm"
+        }
       ]
     },
     {
@@ -784,6 +1054,12 @@
       "related_ids": [
         "business-expense",
         "blue-tax-return"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.2100 減価償却のあらまし",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2100.htm"
+        }
       ]
     },
     {
@@ -802,6 +1078,12 @@
         "nisa",
         "ideco",
         "diversified-investment"
+      ],
+      "sources": [
+        {
+          "title": "金融庁 投資信託",
+          "url": "https://www.fsa.go.jp/policy/nisa2/know/fund/index.html"
+        }
       ]
     },
     {
@@ -819,6 +1101,12 @@
       "related_ids": [
         "investment-trust",
         "ideco"
+      ],
+      "sources": [
+        {
+          "title": "金融庁 NISA特設ウェブサイト",
+          "url": "https://www.fsa.go.jp/policy/nisa2/"
+        }
       ]
     },
     {
@@ -836,6 +1124,12 @@
       "related_ids": [
         "nisa",
         "income-deduction"
+      ],
+      "sources": [
+        {
+          "title": "iDeCo公式サイト（国民年金基金連合会）",
+          "url": "https://www.ideco-koushiki.jp/"
+        }
       ]
     },
     {
@@ -853,6 +1147,12 @@
       "related_ids": [
         "investment-trust",
         "stock-investment"
+      ],
+      "sources": [
+        {
+          "title": "金融庁 長期・積立・分散投資",
+          "url": "https://www.fsa.go.jp/policy/nisa2/know/index.html"
+        }
       ]
     },
     {
@@ -870,6 +1170,12 @@
       "related_ids": [
         "investment-trust",
         "diversified-investment"
+      ],
+      "sources": [
+        {
+          "title": "日本証券業協会 投資の時間",
+          "url": "https://www.jsda.or.jp/jikan/"
+        }
       ]
     },
     {
@@ -886,6 +1192,12 @@
       ],
       "related_ids": [
         "business-expense"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.2210 必要経費の知識",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2210.htm"
+        }
       ]
     },
     {
@@ -999,6 +1311,12 @@
       ],
       "related_ids": [
         "income-deduction"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.1130 社会保険料控除",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1130.htm"
+        }
       ]
     },
     {
@@ -1015,6 +1333,12 @@
       ],
       "related_ids": [
         "blue-tax-return"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 個人事業の開業届出・廃業届出等手続",
+          "url": "https://www.nta.go.jp/taxes/tetsuzuki/shinsei/annai/shinkoku/annai/04.htm"
+        }
       ]
     },
     {
@@ -1022,14 +1346,26 @@
       "title": "インデックス投資",
       "category": "investment",
       "summary": "市場全体の値動きに連動することを目指す投資方法です。",
-      "detail": "日経平均やS&P500のような指数に連動する商品へ分散して投資する考え方です。長期・積立・分散の基本と相性が良い手法です。"
+      "detail": "日経平均やS&P500のような指数に連動する商品へ分散して投資する考え方です。長期・積立・分散の基本と相性が良い手法です。",
+      "sources": [
+        {
+          "title": "金融庁 つみたて投資の基本",
+          "url": "https://www.fsa.go.jp/policy/nisa2/know/practice/index.html"
+        }
+      ]
     },
     {
       "id": "haito-rimawari",
       "title": "配当利回り",
       "category": "investment",
       "summary": "株価に対して、年間配当がどれくらいかを示す目安です。",
-      "detail": "配当金の多さを比較するときの参考指標ですが、高いほど安全とは限りません。値上がり益や企業の安定性と合わせて見るのが大切です。"
+      "detail": "配当金の多さを比較するときの参考指標ですが、高いほど安全とは限りません。値上がり益や企業の安定性と合わせて見るのが大切です。",
+      "sources": [
+        {
+          "title": "日本証券業協会 投資の時間（配当利回り）",
+          "url": "https://www.jsda.or.jp/jikan/word/120.html"
+        }
+      ]
     },
     {
       "id": "bookeeping-debits-credits",
@@ -1037,8 +1373,16 @@
       "category": "bookkeeping",
       "summary": "簿記の仕訳において、左側を「借方」・右側を「貸方」と呼びます。必ず両方が同じ金額になります。",
       "detail": "「借方」はお金の使い道（資産の増加・費用の発生など）、「貸方」はお金の出どころ（負債の増加・収益の発生など）を表します。たとえば「カフェで600円を現金で払った」場合、借方に会議費600円、貸方に現金600円と記入します。借方と貸方は常に一致する（貸借平均の原則）ため、記入ミスに気づきやすくなります。",
-      "keywords": ["仕訳", "貸借", "複式簿記", "勘定科目"],
-      "related_ids": ["simple-bookkeeping", "double-entry-bookkeeping"]
+      "keywords": [
+        "仕訳",
+        "貸借",
+        "複式簿記",
+        "勘定科目"
+      ],
+      "related_ids": [
+        "simple-bookkeeping",
+        "double-entry-bookkeeping"
+      ]
     },
     {
       "id": "simple-bookkeeping",
@@ -1046,8 +1390,15 @@
       "category": "bookkeeping",
       "summary": "収入と支出を1行ずつ記録するシンプルな帳簿のつけ方です。家計簿に近い感覚です。",
       "detail": "お金の出入りを一方向だけ記録するため、手軽に始められます。しかし資産や負債の全体像が把握しにくく、税務署の青色申告（65万円控除）には使えません。白色申告や、売上300万円未満の小規模な事業者に向いています。",
-      "keywords": ["白色申告", "帳簿", "現金出納帳"],
-      "related_ids": ["double-entry-bookkeeping", "blue-tax-return"]
+      "keywords": [
+        "白色申告",
+        "帳簿",
+        "現金出納帳"
+      ],
+      "related_ids": [
+        "double-entry-bookkeeping",
+        "blue-tax-return"
+      ]
     },
     {
       "id": "double-entry-bookkeeping",
@@ -1055,8 +1406,18 @@
       "category": "bookkeeping",
       "summary": "1つの取引を「借方・貸方」の2面から記録する、より正確な帳簿のつけ方です。",
       "detail": "青色申告の65万円特別控除を受けるためには、複式簿記による記帳が必要です。会計ソフト（freee・マネーフォワードなど）を使えば自動で複式簿記の帳票が作れます。単式簿記より手間はかかりますが、損益計算書・貸借対照表が自動生成されるため事業の財務状況が正確に把握できます。",
-      "keywords": ["青色申告", "仕訳帳", "総勘定元帳", "損益計算書", "貸借対照表"],
-      "related_ids": ["simple-bookkeeping", "blue-tax-return", "bookeeping-debits-credits"]
+      "keywords": [
+        "青色申告",
+        "仕訳帳",
+        "総勘定元帳",
+        "損益計算書",
+        "貸借対照表"
+      ],
+      "related_ids": [
+        "simple-bookkeeping",
+        "blue-tax-return",
+        "bookeeping-debits-credits"
+      ]
     },
     {
       "id": "shiwake",
@@ -1064,8 +1425,16 @@
       "category": "bookkeeping",
       "summary": "取引を借方・貸方に分類して勘定科目と金額を記録する作業です。複式簿記の基本です。",
       "detail": "たとえば「Adobeのサブスクに月6,480円をクレジットカードで支払った」場合、仕訳は「借方：消耗品費 6,480円 / 貸方：未払金 6,480円」となります。後日カード引き落とし時に「借方：未払金 6,480円 / 貸方：普通預金 6,480円」と記録します。TaxSuiteのカテゴリ選択は、この勘定科目選びに対応しています。",
-      "keywords": ["勘定科目", "借方", "貸方", "帳簿"],
-      "related_ids": ["bookeeping-debits-credits", "double-entry-bookkeeping"]
+      "keywords": [
+        "勘定科目",
+        "借方",
+        "貸方",
+        "帳簿"
+      ],
+      "related_ids": [
+        "bookeeping-debits-credits",
+        "double-entry-bookkeeping"
+      ]
     },
     {
       "id": "kangyo-kamoku",
@@ -1073,8 +1442,16 @@
       "category": "bookkeeping",
       "summary": "取引を種類ごとに分類するためのラベルです。「交通費」「消耗品費」「接待交際費」などがあります。",
       "detail": "勘定科目を正しく選ぶことで、確定申告時に経費の内訳を正確に申告できます。フリーランスによく使われる勘定科目の例：交通費（電車・タクシー）、通信費（スマホ・Wi-Fi）、消耗品費（文房具・PC周辺機器）、接待交際費（クライアントとの食事）、会議費（打ち合わせのカフェ代）、新聞図書費（書籍・サブスク）、外注工費（業務委託の支払い）。TaxSuiteのカテゴリはこれらに対応しています。",
-      "keywords": ["経費", "仕訳", "確定申告", "青色申告"],
-      "related_ids": ["shiwake", "necessary-expenses"]
+      "keywords": [
+        "経費",
+        "仕訳",
+        "確定申告",
+        "青色申告"
+      ],
+      "related_ids": [
+        "shiwake",
+        "necessary-expenses"
+      ]
     },
     {
       "id": "pl-bs",
@@ -1082,8 +1459,16 @@
       "category": "bookkeeping",
       "summary": "事業の儲けと財産状況を示す2大財務諸表です。青色申告では両方の提出が必要です。",
       "detail": "損益計算書（P/L）は「1年間でいくら稼いでいくら使ったか」を示し、最終的な利益（＝課税される所得）が計算されます。貸借対照表（B/S）は「今いくら資産があり、どれだけ借金があるか」を示します。青色申告の65万円控除を受けるには、この2つの書類を確定申告書と一緒に税務署に提出する必要があります。会計ソフトを使えば自動作成できます。",
-      "keywords": ["青色申告", "確定申告", "財務諸表", "利益"],
-      "related_ids": ["double-entry-bookkeeping", "blue-tax-return"]
+      "keywords": [
+        "青色申告",
+        "確定申告",
+        "財務諸表",
+        "利益"
+      ],
+      "related_ids": [
+        "double-entry-bookkeeping",
+        "blue-tax-return"
+      ]
     },
     {
       "id": "depreciation",
@@ -1091,8 +1476,22 @@
       "category": "bookkeeping",
       "summary": "高額な資産（PC・カメラなど）の購入費を複数年に分けて経費計上する仕組みです。",
       "detail": "10万円以上の資産は原則として一括で経費にできず、耐用年数に応じて毎年少しずつ費用に計上します。例えばMacBook（耐用年数4年・定額法）を20万円で購入した場合、毎年5万円を経費に計上します。ただし、青色申告者は30万円未満の資産を一括で経費にできる「少額減価償却資産の特例」が使えます。",
-      "keywords": ["固定資産", "耐用年数", "少額減価償却", "PC"],
-      "related_ids": ["necessary-expenses", "blue-tax-return"]
+      "keywords": [
+        "固定資産",
+        "耐用年数",
+        "少額減価償却",
+        "PC"
+      ],
+      "related_ids": [
+        "necessary-expenses",
+        "blue-tax-return"
+      ],
+      "sources": [
+        {
+          "title": "国税庁 No.2100 減価償却のあらまし",
+          "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2100.htm"
+        }
+      ]
     },
     {
       "id": "accounts-receivable",
@@ -1100,8 +1499,16 @@
       "category": "bookkeeping",
       "summary": "サービスを提供したのにまだお金をもらっていない状態を記録するための勘定科目です。",
       "detail": "フリーランスが月末締め翌月末払いの契約で仕事をした場合、サービス提供時点で「売上」は計上されますが、入金はまだです。この「もらえるはずのお金」が売掛金です。請求書を発行した月と入金された月がずれるため、帳簿上で正確に管理することが大切です。TaxSuiteの売上入力では請求日を基準に記録することをおすすめします。",
-      "keywords": ["請求書", "入金", "売上", "キャッシュフロー"],
-      "related_ids": ["business-income", "double-entry-bookkeeping"]
+      "keywords": [
+        "請求書",
+        "入金",
+        "売上",
+        "キャッシュフロー"
+      ],
+      "related_ids": [
+        "business-income",
+        "double-entry-bookkeeping"
+      ]
     }
   ]
 }

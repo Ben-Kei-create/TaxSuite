@@ -2019,6 +2019,52 @@ struct GlossaryTermDetailView: View {
                         .foregroundColor(.black)
                         .lineSpacing(6)
 
+                    if let sources = term.sources, !sources.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "link")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text("参考（公式ソース）")
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(.secondary)
+                            }
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(sources, id: \.url) { source in
+                                    if let url = URL(string: source.url) {
+                                        Link(destination: url) {
+                                            HStack(alignment: .top, spacing: 8) {
+                                                Image(systemName: "arrow.up.right.square")
+                                                    .font(.footnote)
+                                                    .foregroundColor(.blue)
+                                                    .padding(.top, 2)
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(source.title)
+                                                        .font(.subheadline)
+                                                        .foregroundColor(.blue)
+                                                        .multilineTextAlignment(.leading)
+                                                    Text(source.url)
+                                                        .font(.caption2)
+                                                        .foregroundColor(.secondary)
+                                                        .lineLimit(1)
+                                                        .truncationMode(.middle)
+                                                }
+                                                Spacer(minLength: 0)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Text("※ 最新の内容は公式サイトでご確認ください。")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.blue.opacity(0.05))
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

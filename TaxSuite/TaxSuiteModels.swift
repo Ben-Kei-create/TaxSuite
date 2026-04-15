@@ -950,11 +950,31 @@ struct GlossaryTerm: Identifiable, Hashable, Decodable {
         }
     }
 
+    struct Source: Hashable, Decodable {
+        let title: String
+        let url: String
+    }
+
     let id: String
     let title: String
     let category: Category
     let summary: String
     let detail: String
+    let sources: [Source]?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, category, summary, detail, sources
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.title = try container.decode(String.self, forKey: .title)
+        self.category = try container.decode(Category.self, forKey: .category)
+        self.summary = try container.decode(String.self, forKey: .summary)
+        self.detail = try container.decode(String.self, forKey: .detail)
+        self.sources = try container.decodeIfPresent([Source].self, forKey: .sources)
+    }
 
     static let sampleTerms: [GlossaryTerm] = loadTerms()
 
