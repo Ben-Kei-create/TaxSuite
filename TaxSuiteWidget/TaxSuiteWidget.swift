@@ -8,13 +8,14 @@ struct TaxSuiteEntry: TimelineEntry {
     let date: Date
     let snapshot: TaxSuiteWidgetSnapshot
     let buttonSlots: [WidgetButtonSlot]
+    let hasAppLaunched: Bool
 }
 
 // MARK: - Timeline Provider
 
 struct TaxSuiteProvider: TimelineProvider {
     func placeholder(in context: Context) -> TaxSuiteEntry {
-        TaxSuiteEntry(date: .now, snapshot: .preview, buttonSlots: WidgetButtonSlot.defaultSlots)
+        TaxSuiteEntry(date: .now, snapshot: .preview, buttonSlots: WidgetButtonSlot.defaultSlots, hasAppLaunched: true)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (TaxSuiteEntry) -> Void) {
@@ -31,7 +32,8 @@ struct TaxSuiteProvider: TimelineProvider {
         TaxSuiteEntry(
             date: .now,
             snapshot: TaxSuiteWidgetStore.load() ?? .preview,
-            buttonSlots: TaxSuiteWidgetStore.loadButtonSlots()
+            buttonSlots: TaxSuiteWidgetStore.loadButtonSlots(),
+            hasAppLaunched: TaxSuiteWidgetStore.hasAppLaunched
         )
     }
 }
@@ -42,7 +44,30 @@ struct TaxSuiteWidgetView: View {
     var entry: TaxSuiteEntry
 
     var body: some View {
-        mediumView
+        if entry.hasAppLaunched {
+            mediumView
+        } else {
+            notReadyView
+        }
+    }
+
+    // MARK: Not Ready — アプリ未起動時のプレースホルダー
+
+    var notReadyView: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "chart.pie.fill")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text("TaxSuite")
+                .font(.headline.weight(.bold))
+            Text("アプリを開いてウィジェットを有効化")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .widgetURL(URL(string: "taxsuite://dashboard"))
+        .containerBackground(for: .widget) { widgetBackground }
     }
 
     // MARK: Medium — 左パネルタップでアプリ、右ボタンで即時記録
@@ -321,7 +346,13 @@ private extension TaxSuiteWidgetSnapshot {
 #Preview("Medium", as: .systemMedium) {
     TaxSuiteWidget()
 } timeline: {
-    TaxSuiteEntry(date: .now, snapshot: .preview, buttonSlots: WidgetButtonSlot.defaultSlots)
+    TaxSuiteEntry(date: .now, snapshot: .preview, buttonSlots: WidgetButtonSlot.defaultSlots, hasAppLaunched: true)
+}
+
+#Preview("Medium (未起動)", as: .systemMedium) {
+    TaxSuiteWidget()
+} timeline: {
+    TaxSuiteEntry(date: .now, snapshot: .preview, buttonSlots: WidgetButtonSlot.defaultSlots, hasAppLaunched: false)
 }
 
 #Preview("Medium (カスタム)", as: .systemMedium) {
@@ -335,6 +366,7 @@ private extension TaxSuiteWidgetSnapshot {
             WidgetButtonSlot(id: 1, title: "新幹線",   amount: 6600, category: "交通費",   project: TaxSuiteWidgetSupport.defaultProjectNames[1]),
             WidgetButtonSlot(id: 2, title: "AWS",      amount: 3200, category: "通信費",   project: TaxSuiteWidgetSupport.defaultProjectNames[0]),
             WidgetButtonSlot(id: 3, title: "書籍",     amount: 2200, category: "消耗品費", project: TaxSuiteWidgetSupport.defaultProjectNames[2])
-        ]
+        ],
+        hasAppLaunched: true
     )
 }

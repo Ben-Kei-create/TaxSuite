@@ -7,6 +7,7 @@ import GoogleMobileAds
 @main
 struct TaxSuiteApp: App {
     init() {
+        TaxSuiteWidgetStore.markAppLaunched()
 #if canImport(GoogleMobileAds)
         MobileAds.shared.start(completionHandler: nil)
 #endif
