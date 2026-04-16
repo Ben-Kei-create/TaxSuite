@@ -2670,18 +2670,33 @@ struct SettingsView: View {
                         Button {
                             isTaxSuiteProEnabled.toggle()
                         } label: {
-                            HStack(spacing: 12) {
-                                Text("TaxSuite Pro")
-                                    .font(.headline)
-                                    .foregroundColor(.black)
-                                Spacer()
-                                Text(isTaxSuiteProEnabled ? "ON" : "OFF")
-                                    .font(.caption.bold())
-                                    .foregroundColor(isTaxSuiteProEnabled ? .green : .secondary)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background((isTaxSuiteProEnabled ? Color.green : Color.gray).opacity(0.12))
-                                    .clipShape(Capsule())
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "crown.fill")
+                                        .font(.title3)
+                                        .foregroundColor(.yellow)
+                                    Text("TaxSuite Pro")
+                                        .font(.headline)
+                                        .foregroundColor(.black)
+                                    Spacer()
+                                    Text(isTaxSuiteProEnabled ? "ON" : "OFF")
+                                        .font(.caption.bold())
+                                        .foregroundColor(isTaxSuiteProEnabled ? .green : .secondary)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
+                                        .background((isTaxSuiteProEnabled ? Color.green : Color.gray).opacity(0.12))
+                                        .clipShape(Capsule())
+                                }
+                                VStack(alignment: .leading, spacing: 6) {
+                                    proFeatureRow(icon: "infinity", text: "経費・売上の登録数が無制限")
+                                    proFeatureRow(icon: "icloud.fill", text: "iCloud同期（今後対応予定）")
+                                    proFeatureRow(icon: "sparkles", text: "AIによるカテゴリ自動提案")
+                                }
+                                Text(isTaxSuiteProEnabled
+                                     ? "Pro機能が有効です。ご利用ありがとうございます！"
+                                     : "※ 現在はベータ提供中のため、トグルで有効化できます。")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
                             }
                             .padding(.vertical, 4)
                         }
@@ -2908,6 +2923,53 @@ struct SettingsView: View {
                             .padding(.vertical, 4)
                         }
                     }
+                    Section(header: Text("アプリについて")) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "person.crop.circle.fill")
+                                .foregroundColor(.blue)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("クリエイター")
+                                    .font(.headline)
+                                    .foregroundColor(.black)
+                                Text("Ben-Kei")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .padding(.vertical, 4)
+
+                        if let contactURL = URL(string: "mailto:support@taxsuite.app") {
+                            Link(destination: contactURL) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "envelope.fill")
+                                        .foregroundColor(.orange)
+                                    Text("お問い合わせ")
+                                        .font(.headline)
+                                        .foregroundColor(.black)
+                                    Spacer()
+                                    Image(systemName: "arrow.up.right.square")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+
+                        HStack(spacing: 12) {
+                            Image(systemName: "info.circle.fill")
+                                .foregroundColor(.gray)
+                            Text("バージョン")
+                                .font(.headline)
+                                .foregroundColor(.black)
+                            Spacer()
+                            Text(appVersionString)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .monospacedDigit()
+                        }
+                        .padding(.vertical, 4)
+                    }
                 }
                 .listStyle(.insetGrouped)
             }
@@ -2969,6 +3031,26 @@ struct SettingsView: View {
             exportFile = ExportFile(url: url)
         } catch {
             exportErrorMessage = error.localizedDescription
+        }
+    }
+
+    private var appVersionString: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let build = info?["CFBundleVersion"] as? String ?? "1"
+        return "\(version) (\(build))"
+    }
+
+    private func proFeatureRow(icon: String, text: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundColor(.black.opacity(0.6))
+                .frame(width: 18)
+            Text(text)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Spacer()
         }
     }
 
