@@ -30,7 +30,7 @@ struct ContentView: View {
                 .tabItem { Label("設定", systemImage: "gearshape.fill") }
                 .tag(3)
         }
-        .accentColor(.black)
+        .accentColor(.primary)
         // ジオフェンス通知タップ → 経費入力シートを開く
         .sheet(isPresented: $showingGeofenceExpenseSheet, onDismiss: {
             locationManager.pendingGeofenceExpense = nil

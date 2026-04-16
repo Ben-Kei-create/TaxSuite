@@ -10,7 +10,14 @@ struct OnboardingView: View {
 
     var onComplete: () -> Void
 
+    /// Permissions ステップ（外部権限の依頼）を省略するかどうか。
+    /// 設定から「使い方を見る」で呼び出した場合は権限リクエストをスキップする。
+    var skipPermissions: Bool = false
+
     @State private var step: Int = 0
+
+    /// 合計ステップ数。Welcome → Personalize → HowTo ( → Permissions )
+    private var totalSteps: Int { skipPermissions ? 3 : 4 }
 
     // Permissions
     @State private var cameraGranted = false
@@ -26,7 +33,7 @@ struct OnboardingView: View {
 
     var body: some View {
         ZStack {
-            Color.white.ignoresSafeArea()
+            Color(UIColor.systemBackground).ignoresSafeArea()
 
             VStack(spacing: 0) {
                 // Step content
@@ -35,6 +42,8 @@ struct OnboardingView: View {
                         welcomeStep.transition(stepTransition)
                     } else if step == 1 {
                         personalizeStep.transition(stepTransition)
+                    } else if step == 2 {
+                        howToStep.transition(stepTransition)
                     } else {
                         permissionsStep.transition(stepTransition)
                     }
@@ -67,10 +76,10 @@ struct OnboardingView: View {
                 // Hero icon
                 ZStack {
                     Circle()
-                        .fill(Color.white)
+                        .fill(Color(UIColor.secondarySystemBackground))
                         .frame(width: 110, height: 110)
-                        .shadow(color: .black.opacity(0.06), radius: 24, x: 0, y: 14)
-                        .overlay(Circle().stroke(Color.black.opacity(0.04), lineWidth: 1))
+                        .shadow(color: Color.primary.opacity(0.06), radius: 24, x: 0, y: 14)
+                        .overlay(Circle().stroke(Color.primary.opacity(0.06), lineWidth: 1))
 
                     Image("SplashIcon")
                         .resizable()
@@ -87,7 +96,7 @@ struct OnboardingView: View {
                 Text("ようこそ、TaxSuiteへ")
                     .font(.system(size: 30, weight: .bold, design: .rounded))
                     .tracking(-0.5)
-                    .foregroundColor(.black)
+                    .foregroundColor(.primary)
                     .padding(.bottom, 10)
 
                 Text("フリーランスの経費・税金を、\nもっとシンプルに。")
@@ -101,7 +110,7 @@ struct OnboardingView: View {
                 VStack(spacing: 14) {
                     featureCard(
                         icon: "camera.viewfinder",
-                        iconColor: .black,
+                        iconColor: .primary,
                         title: "カメラでレシート一発入力",
                         subtitle: "OCR が金額・日付を自動読み取り"
                     )
@@ -137,7 +146,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.black)
+                    .foregroundColor(.primary)
                 Text(subtitle)
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -145,7 +154,7 @@ struct OnboardingView: View {
             Spacer()
         }
         .padding(14)
-        .background(Color.black.opacity(0.025))
+        .background(Color.primary.opacity(0.04))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
@@ -158,7 +167,7 @@ struct OnboardingView: View {
                     .font(.system(size: 48))
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [.black, .black.opacity(0.6)],
+                            colors: [Color.primary, Color.primary.opacity(0.6)],
                             startPoint: .topLeading, endPoint: .bottomTrailing
                         )
                     )
@@ -167,7 +176,7 @@ struct OnboardingView: View {
 
                 Text("基本情報を設定")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundColor(.black)
+                    .foregroundColor(.primary)
                     .padding(.bottom, 6)
 
                 Text("あとから設定でいつでも変更できます")
@@ -186,10 +195,10 @@ struct OnboardingView: View {
                             Text("\(Int(taxRate * 100))%")
                                 .font(.system(.title3, design: .rounded).weight(.bold))
                                 .monospacedDigit()
-                                .foregroundColor(.black)
+                                .foregroundColor(.primary)
                         }
                         Slider(value: $taxRate, in: 0.1...0.5, step: 0.05)
-                            .tint(.black)
+                            .tint(.primary)
                     }
                     .padding(16)
 
@@ -215,9 +224,9 @@ struct OnboardingView: View {
                     }
                     .padding(16)
                 }
-                .background(Color.white)
+                .background(Color(UIColor.secondarySystemBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .shadow(color: .black.opacity(0.06), radius: 14, x: 0, y: 6)
+                .shadow(color: Color.primary.opacity(0.06), radius: 14, x: 0, y: 6)
                 .padding(.bottom, 16)
 
                 Text("税率は売上規模で変わります。わからなければ 20% のままで OK。")
@@ -229,7 +238,108 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: - Step 2 : Permissions
+    // MARK: - Step 2 : How to use
+
+    private var howToStep: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 44))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color.primary, Color.primary.opacity(0.55)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        )
+                    )
+                    .padding(.top, 48)
+                    .padding(.bottom, 18)
+
+                Text("かんたんな使い方")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
+                    .padding(.bottom, 6)
+
+                Text("この4つを覚えるだけで、もう自分の手取りが見えます。")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineSpacing(3)
+                    .padding(.bottom, 24)
+
+                VStack(spacing: 14) {
+                    howToCard(
+                        step: "1",
+                        icon: "plus.circle.fill",
+                        iconColor: .primary,
+                        title: "経費・売上を追加",
+                        subtitle: "ダッシュボード右下の ＋ ボタンから。\nレシートはカメラで一発読み取り可能。"
+                    )
+                    howToCard(
+                        step: "2",
+                        icon: "bolt.fill",
+                        iconColor: .orange,
+                        title: "クイック追加で1秒記録",
+                        subtitle: "よく使う経費（カフェ・交通費など）は\nダッシュボードのタイルをタップするだけ。"
+                    )
+                    howToCard(
+                        step: "3",
+                        icon: "square.grid.2x2.fill",
+                        iconColor: .purple,
+                        title: "ウィジェットでさらに速く",
+                        subtitle: "ホーム画面にウィジェットを置くと、\nアプリを開かずに経費を追加できます。"
+                    )
+                    howToCard(
+                        step: "4",
+                        icon: "chart.pie.fill",
+                        iconColor: .blue,
+                        title: "カレンダー・分析で振り返り",
+                        subtitle: "カレンダーで日ごとの支出をヒートマップに。\n分析でカテゴリ別の推移をチェック。"
+                    )
+                }
+                .padding(.bottom, 32)
+            }
+            .padding(.horizontal, 24)
+        }
+    }
+
+    private func howToCard(step: String, icon: String, iconColor: Color, title: String, subtitle: String) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            // 番号バッジ
+            ZStack {
+                Circle()
+                    .fill(Color.primary)
+                    .frame(width: 26, height: 26)
+                Text(step)
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(Color(UIColor.systemBackground))
+            }
+            .padding(.top, 2)
+
+            // アイコン
+            Image(systemName: icon)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(iconColor)
+                .frame(width: 40, height: 40)
+                .background(iconColor.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.primary)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .background(Color.primary.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    // MARK: - Step 3 : Permissions
 
     private var permissionsStep: some View {
         ScrollView(showsIndicators: false) {
@@ -239,7 +349,7 @@ struct OnboardingView: View {
                     Circle()
                         .fill(
                             LinearGradient(
-                                colors: [Color.black.opacity(0.04), Color.clear],
+                                colors: [Color.primary.opacity(0.06), Color.clear],
                                 startPoint: .topLeading, endPoint: .bottomTrailing
                             )
                         )
@@ -251,7 +361,7 @@ struct OnboardingView: View {
                             LinearGradient(
                                 colors: cameraGranted
                                     ? [.green, .green.opacity(0.7)]
-                                    : [.black, .black.opacity(0.65)],
+                                    : [Color.primary, Color.primary.opacity(0.65)],
                                 startPoint: .topLeading, endPoint: .bottomTrailing
                             )
                         )
@@ -262,7 +372,7 @@ struct OnboardingView: View {
 
                 Text(cameraGranted ? "準備完了です!" : "あと少しで準備完了")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundColor(.black)
+                    .foregroundColor(.primary)
                     .padding(.bottom, 10)
 
                 Text(cameraGranted
@@ -284,10 +394,10 @@ struct OnboardingView: View {
                             Text("カメラを許可する")
                                 .font(.subheadline.weight(.semibold))
                         }
-                        .foregroundColor(.black)
+                        .foregroundColor(.primary)
                         .padding(.horizontal, 28)
                         .padding(.vertical, 14)
-                        .background(Color.black.opacity(0.06))
+                        .background(Color.primary.opacity(0.08))
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                     .padding(.bottom, 12)
@@ -334,7 +444,7 @@ struct OnboardingView: View {
             Spacer()
         }
         .padding(12)
-        .background(Color.black.opacity(0.02))
+        .background(Color.primary.opacity(0.04))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
@@ -342,9 +452,9 @@ struct OnboardingView: View {
 
     private var progressDots: some View {
         HStack(spacing: 8) {
-            ForEach(0..<3) { index in
+            ForEach(0..<totalSteps, id: \.self) { index in
                 Capsule()
-                    .fill(index == step ? Color.black : Color.black.opacity(0.12))
+                    .fill(index == step ? Color.primary : Color.primary.opacity(0.2))
                     .frame(width: index == step ? 24 : 8, height: 8)
                     .animation(.spring(response: 0.35, dampingFraction: 0.75), value: step)
             }
@@ -364,6 +474,17 @@ struct OnboardingView: View {
             primaryButton("次へ") {
                 advance()
             }
+        case 2:
+            // skipPermissions の場合はこのステップが最終ステップ
+            if skipPermissions {
+                primaryButton("完了") {
+                    onComplete()
+                }
+            } else {
+                primaryButton("次へ") {
+                    advance()
+                }
+            }
         default:
             primaryButton("ダッシュボードへ", isActive: cameraGranted || cameraChecked) {
                 onComplete()
@@ -375,10 +496,10 @@ struct OnboardingView: View {
         Button(action: action) {
             Text(label)
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(Color(UIColor.systemBackground))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
-                .background(isActive ? Color.black : Color.black.opacity(0.2))
+                .background(isActive ? Color.primary : Color.primary.opacity(0.2))
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .disabled(!isActive)

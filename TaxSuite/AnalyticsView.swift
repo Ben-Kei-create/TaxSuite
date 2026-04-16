@@ -217,7 +217,7 @@ struct AnalyticsView: View {
             Button(action: { shiftReferenceDate(by: -1) }) {
                 Image(systemName: "chevron.left")
                     .font(.subheadline.weight(.bold))
-                    .foregroundColor(.black)
+                    .foregroundColor(.primary)
                     .frame(width: 32, height: 32)
                     .background(Color.black.opacity(0.05))
                     .clipShape(Circle())
@@ -230,7 +230,7 @@ struct AnalyticsView: View {
                 HStack(spacing: 4) {
                     Text(rangeTitle)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.black)
+                        .foregroundColor(.primary)
                     Image(systemName: "chevron.down")
                         .font(.caption2.weight(.bold))
                         .foregroundColor(.black.opacity(0.6))
@@ -244,7 +244,7 @@ struct AnalyticsView: View {
             Button(action: { shiftReferenceDate(by: 1) }) {
                 Image(systemName: "chevron.right")
                     .font(.subheadline.weight(.bold))
-                    .foregroundColor(.black)
+                    .foregroundColor(.primary)
                     .frame(width: 32, height: 32)
                     .background(Color.black.opacity(0.05))
                     .clipShape(Circle())
@@ -303,7 +303,7 @@ struct AnalyticsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(rangeTitle + "の合計支出")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.black)
+                        .foregroundColor(.primary)
                     Text("\(filteredExpenses.count)件")
                         .font(.caption2)
                         .foregroundColor(.secondary)
@@ -311,7 +311,7 @@ struct AnalyticsView: View {
                 Spacer()
                 Text("¥\(Int(totalSpent).formatted())")
                     .taxSuiteAmountStyle(size: 22, weight: .bold, tracking: -0.4)
-                    .foregroundColor(.black)
+                    .foregroundColor(.primary)
             }
             .padding(.vertical, 4)
 
@@ -381,7 +381,7 @@ struct AnalyticsView: View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.name)
-                    .foregroundColor(.black)
+                    .foregroundColor(.primary)
                 if item.subscriptionTotal > 0 {
                     Text("サブスク ¥\(Int(item.subscriptionTotal).formatted()) を含む")
                         .font(.caption2)
@@ -429,10 +429,10 @@ struct AnalyticsView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.subheadline.weight(.semibold))
-                .foregroundColor(.black)
+                .foregroundColor(.primary)
             Text("¥\(Int(amount).formatted())")
                 .taxSuiteAmountStyle(size: 22, weight: .bold, tracking: -0.4)
-                .foregroundColor(.black)
+                .foregroundColor(.primary)
             Text("\(count)件")
                 .font(.caption2)
                 .foregroundColor(.secondary)
@@ -448,7 +448,7 @@ struct AnalyticsView: View {
             HStack {
                 Text("支出の内訳")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.black)
+                    .foregroundColor(.primary)
                 Spacer()
                 Text("\(Int((subscriptionShare * 100).rounded()))% が固定費")
                     .font(.caption.weight(.semibold))
@@ -486,7 +486,7 @@ struct AnalyticsView: View {
         HStack(spacing: 6) {
             Circle().fill(tint).frame(width: 8, height: 8)
             Text(title).font(.caption).foregroundColor(.secondary)
-            Text("¥\(Int(amount).formatted())").font(.caption.weight(.semibold)).foregroundColor(.black)
+            Text("¥\(Int(amount).formatted())").font(.caption.weight(.semibold)).foregroundColor(.primary)
         }
     }
 }
