@@ -9,10 +9,9 @@ import GoogleMobileAds
 struct AdBannerView: UIViewRepresentable {
     typealias UIViewType = BannerView
 
-    // ⚠️ リリース前に AdMob コンソールで取得した本番 ID に変更する
-    // Google公式の iOS バナー向けテスト用広告ユニット ID
-    // テスト用:  ca-app-pub-3940256099942544/2435281174
-    // 本番用:   ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX
+    // ⚠️ RELEASE前必須: AdMob コンソール (admob.google.com) で作成した本番広告ユニット ID に変更すること
+    // テスト用 (現在):  ca-app-pub-3940256099942544/2435281174
+    // 本番用 (要変更): AdMob コンソール → アプリ → 広告ユニット → バナー で取得
     var adUnitID: String = "ca-app-pub-3940256099942544/2435281174"
 
     func makeUIView(context: Context) -> BannerView {

@@ -997,7 +997,7 @@ struct GlossaryTerm: Identifiable, Hashable, Decodable {
                 let payload = try JSONDecoder().decode(GlossaryTermsPayload.self, from: data)
                 return payload.terms
             } catch {
-                print("Failed to decode GlossaryTerms.json: \(error)")
+                break // GlossaryTerms.json の読み込み失敗時は空リストを返す
             }
         }
 

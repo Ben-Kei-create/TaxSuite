@@ -24,7 +24,7 @@ struct TaxSuiteProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<TaxSuiteEntry>) -> Void) {
         let entry = readEntry()
-        let next = Calendar.current.date(byAdding: .hour, value: 1, to: .now)!
+        let next = Calendar.current.date(byAdding: .hour, value: 1, to: .now) ?? Date().addingTimeInterval(3600)
         completion(Timeline(entries: [entry], policy: .after(next)))
     }
 

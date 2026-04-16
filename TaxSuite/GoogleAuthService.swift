@@ -36,7 +36,7 @@ final class GoogleAuthService {
 
     // MARK: - Configuration (プレースホルダー。実際の値に差し替えてください)
 
-    /// Google Cloud Console > 認証情報 > OAuth 2.0 クライアント ID
+    // ⚠️ RELEASE前必須: console.cloud.google.com → 認証情報 → OAuth 2.0 クライアント ID (iOS) で取得
     nonisolated static let clientID = "YOUR_CLIENT_ID_HERE"
 
     // MARK: - Observable state

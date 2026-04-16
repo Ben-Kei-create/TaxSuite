@@ -2651,6 +2651,8 @@ struct SettingsView: View {
     @Query(sort: \IncomeItem.timestamp, order: .reverse) private var incomes: [IncomeItem]
     @Binding var taxRate: Double
     @AppStorage("isTaxSuiteProEnabled") private var isTaxSuiteProEnabled = false
+    @State private var store = TaxSuiteStore.shared
+    @State private var showingProModal = false
     @State private var exportFile: ExportFile?
     @State private var exportErrorMessage: String?
     @State private var selectedExportFormat: ExportFormat = .standard
@@ -2668,9 +2670,7 @@ struct SettingsView: View {
                 List {
                     // MARK: - Pro (featured)
                     Section {
-                        Button {
-                            isTaxSuiteProEnabled.toggle()
-                        } label: {
+                        Button { showingProModal = true } label: {
                             VStack(alignment: .leading, spacing: 14) {
                                 HStack(alignment: .center, spacing: 12) {
                                     ZStack {
@@ -2694,22 +2694,23 @@ struct SettingsView: View {
                                         Text("TaxSuite Pro")
                                             .font(.title3.weight(.bold))
                                             .foregroundColor(.primary)
-                                        Text(isTaxSuiteProEnabled ? "すべての機能を利用できます" : "もっと便利になる拡張機能")
+                                        Text(store.isPurchased ? "すべての機能を利用できます" : "もっと便利になる拡張機能")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                     }
                                     Spacer()
-                                    proStatusPill(isOn: isTaxSuiteProEnabled)
+                                    proStatusPill(isOn: store.isPurchased)
                                 }
                                 VStack(alignment: .leading, spacing: 8) {
-                                    proFeatureRow(icon: "infinity", text: "経費・売上の登録数が無制限")
-                                    proFeatureRow(icon: "icloud.fill", text: "iCloud同期（今後対応予定）")
-                                    proFeatureRow(icon: "sparkles", text: "AIによるカテゴリ自動提案")
+                                    proFeatureRow(icon: "infinity",                 text: "経費・売上の登録数が無制限")
+                                    proFeatureRow(icon: "doc.text.magnifyingglass", text: "レシートスキャン自動読み取り")
+                                    proFeatureRow(icon: "icloud.fill",              text: "iCloud同期（今後対応予定）")
+                                    proFeatureRow(icon: "sparkles",                 text: "AIによるカテゴリ自動提案")
                                 }
                                 .padding(.leading, 2)
-                                Text(isTaxSuiteProEnabled
-                                     ? "ご利用ありがとうございます。タップで一時的にOFFにできます。"
-                                     : "ベータ版では手動でON/OFFを切り替えて試せます。")
+                                Text(store.isPurchased
+                                     ? "ご利用ありがとうございます。"
+                                     : "タップして詳細・購入画面へ")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
@@ -2717,6 +2718,7 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.plain)
                     }
+                    .sheet(isPresented: $showingProModal) { ProUpgradeView() }
 
                     // MARK: - 計算設定
                     Section {
@@ -4004,39 +4006,123 @@ struct ReceiptImportView: View {
 
 struct ProUpgradeView: View {
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("isTaxSuiteProEnabled") private var isTaxSuiteProEnabled = false
+    @State private var store = TaxSuiteStore.shared
 
     var body: some View {
         TaxSuiteScreenSurface {
-            VStack(spacing: 24) {
-                Text("TaxSuite Pro")
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .padding(.top, 12)
+            VStack(spacing: 0) {
+                // アイコン + タイトル
+                VStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.yellow.opacity(0.9), Color.orange.opacity(0.85)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 72, height: 72)
+                        Image(systemName: "crown.fill")
+                            .font(.system(size: 30, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+                    Text("TaxSuite Pro")
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                    if let product = store.proProduct {
+                        Text(product.displayPrice + "　買い切り")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.top, 40)
+                .padding(.bottom, 32)
 
-                Text("テスト用にそのまま有効化できます。")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 28)
+                // 機能一覧
+                VStack(alignment: .leading, spacing: 14) {
+                    proFeatureRow(icon: "infinity",                 text: "経費・売上の登録数が無制限")
+                    proFeatureRow(icon: "doc.text.magnifyingglass", text: "レシートスキャン自動読み取り")
+                    proFeatureRow(icon: "icloud.fill",              text: "iCloud同期（今後対応予定）")
+                    proFeatureRow(icon: "sparkles",                 text: "AIによるカテゴリ自動提案")
+                }
+                .padding(.horizontal, 32)
 
                 Spacer()
 
-                Button(isTaxSuiteProEnabled ? "すでに有効です" : "テスト用に Pro を有効化") {
-                    isTaxSuiteProEnabled = true
-                    dismiss()
+                // エラー表示
+                if let error = store.purchaseError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 8)
                 }
-                .font(.headline)
-                .foregroundColor(Color(UIColor.systemBackground))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(Color.primary)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .padding(.horizontal, 24)
 
-                Button("閉じる") { dismiss() }
-                    .padding(.bottom, 28)
-                    .foregroundColor(.gray)
+                // CTA
+                VStack(spacing: 12) {
+                    if store.isPurchased {
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.seal.fill")
+                                .foregroundStyle(.green)
+                            Text("購入済み - すべての機能が使えます")
+                                .font(.headline)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Color.green.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .padding(.horizontal, 24)
+                    } else {
+                        Button {
+                            Task { await store.purchase() }
+                        } label: {
+                            Group {
+                                if store.isLoading {
+                                    ProgressView().tint(Color(UIColor.systemBackground))
+                                } else if let product = store.proProduct {
+                                    Text("購入する - \(product.displayPrice)")
+                                } else {
+                                    Text("読み込み中...")
+                                }
+                            }
+                            .font(.headline)
+                            .foregroundColor(Color(UIColor.systemBackground))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                        }
+                        .background(Color.primary)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .padding(.horizontal, 24)
+                        .disabled(store.proProduct == nil || store.isLoading)
+
+                        Button("購入を復元") {
+                            Task { await store.restore() }
+                        }
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .disabled(store.isLoading)
+                    }
+
+                    Button("閉じる") { dismiss() }
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .padding(.bottom, 32)
+                }
             }
+        }
+    }
+
+    private func proFeatureRow(icon: String, text: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+            Text(text)
+                .font(.subheadline)
+                .foregroundColor(.primary.opacity(0.85))
+            Spacer()
         }
     }
 }
