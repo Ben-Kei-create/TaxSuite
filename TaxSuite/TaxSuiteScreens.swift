@@ -438,11 +438,11 @@ struct DashboardView: View {
             Button(action: openReceiptImporter) {
                 Image(systemName: "camera.fill")
                     .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(Color(UIColor.systemBackground))
                     .frame(width: 56, height: 56)
-                    .background(Color.black)
+                    .background(Color.primary)
                     .clipShape(Circle())
-                    .shadow(color: .black.opacity(0.22), radius: 6, x: 0, y: 4)
+                    .shadow(color: Color.primary.opacity(0.22), radius: 6, x: 0, y: 4)
             }
 
             Spacer()
@@ -450,11 +450,11 @@ struct DashboardView: View {
             Button(action: toggleShortcutBar) {
                 Image(systemName: "plus")
                     .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(Color(UIColor.systemBackground))
                     .frame(width: 56, height: 56)
-                    .background(Color.black)
+                    .background(Color.primary)
                     .clipShape(Circle())
-                    .shadow(color: .black.opacity(0.22), radius: 6, x: 0, y: 4)
+                    .shadow(color: Color.primary.opacity(0.22), radius: 6, x: 0, y: 4)
             }
         }
         .padding(.horizontal, 20)
@@ -467,7 +467,7 @@ struct DashboardView: View {
             // 上部に細いハンドルを置いて、タップすれば閉じられることを視覚的に示す
             Button(action: { closeShortcutBar() }) {
                 Capsule()
-                    .fill(Color.black.opacity(0.18))
+                    .fill(Color.primary.opacity(0.18))
                     .frame(width: 36, height: 4)
                     .padding(.top, 6)
                     .padding(.bottom, 4)
@@ -515,11 +515,11 @@ struct DashboardView: View {
             VStack(spacing: 6) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.black.opacity(0.06))
+                        .fill(Color.primary.opacity(0.06))
                         .frame(width: 42, height: 42)
                     Image(systemName: shortcutSymbol(for: slot))
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.black)
+                        .foregroundColor(.primary)
                 }
 
                 Text(slot.title.isEmpty ? "未設定" : slot.title)
@@ -550,16 +550,16 @@ struct DashboardView: View {
             VStack(spacing: 6) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.black)
+                        .fill(Color.primary)
                         .frame(width: 42, height: 42)
                     Image(systemName: "plus")
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(Color(UIColor.systemBackground))
                 }
 
                 Text("手入力")
                     .font(.caption2.weight(.semibold))
-                    .foregroundColor(.black)
+                    .foregroundColor(.primary)
                     .lineLimit(1)
             }
             .frame(width: 56)
@@ -621,7 +621,7 @@ struct DashboardView: View {
                     Text("今月の推定手取り").font(.subheadline).foregroundColor(.gray)
                     Text("¥\(Int(takeHome).formatted())")
                         .taxSuiteHeroAmountStyle()
-                        .foregroundColor(.black)
+                        .foregroundColor(.primary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.top, 20)
@@ -650,7 +650,7 @@ struct DashboardView: View {
             }
             .padding(.bottom, 20)
         }
-        .background(Color.white)
+        .background(Color(UIColor.secondarySystemBackground))
         .cornerRadius(24)
         .shadow(color: .black.opacity(0.04), radius: 12, x: 0, y: 6)
         .padding(.horizontal, 20)
@@ -793,16 +793,16 @@ struct QuickAddButton: View {
         VStack(alignment: .leading, spacing: 5) {
             Text(title)
                 .font(.subheadline.weight(.semibold))
-                .foregroundColor(.black)
+                .foregroundColor(.primary)
                 .lineLimit(1)
             Text("¥\(Int(amount))")
                 .taxSuiteAmountStyle(size: 17, weight: .bold, tracking: -0.2)
-                .foregroundColor(.black)
+                .foregroundColor(.primary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 13)
         .padding(.vertical, 12)
-        .background(Color.white)
+        .background(Color(UIColor.secondarySystemBackground))
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.035), radius: 5, x: 0, y: 3)
         .onTapGesture(perform: onTap)
@@ -869,7 +869,7 @@ struct TodayExpenseRow: View {
                             Text(expense.title)
                                 .font(.subheadline)
                                 .bold()
-                                .foregroundColor(.black)
+                                .foregroundColor(.primary)
                                 .lineLimit(1)
                                 .layoutPriority(1)
                             if !expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -912,7 +912,7 @@ struct TodayExpenseRow: View {
                     VStack(alignment: .trailing, spacing: 3) {
                         Text("¥\(Int(expense.effectiveAmount).formatted())")
                             .taxSuiteAmountStyle(size: 16, weight: .semibold, tracking: -0.2)
-                            .foregroundColor(.black)
+                            .foregroundColor(.primary)
                         if expense.businessRatio < 1.0 {
                             Text("全体: ¥\(Int(expense.amount))")
                                 .font(.caption2)
@@ -934,7 +934,7 @@ struct TodayExpenseRow: View {
             // 押下感を出すために薄いブラックのオーバーレイを重ねる。
             .overlay(
                 RoundedRectangle(cornerRadius: 15, style: .continuous)
-                    .fill(Color.black.opacity(isPressing ? 0.06 : 0))
+                    .fill(Color.primary.opacity(isPressing ? 0.06 : 0))
                     .allowsHitTesting(false)
             )
             .cornerRadius(15)
@@ -1110,7 +1110,7 @@ struct IncomeEditView: View {
                             displayedComponents: [.date]
                         )
                         .datePickerStyle(.compact)
-                        .tint(.black)
+                        .tint(.primary)
                         .environment(\.locale, Locale(identifier: "ja_JP"))
                     }
                     Section(header: Text("プロジェクト")) {
@@ -1289,7 +1289,7 @@ struct ExpenseEditView: View {
                             displayedComponents: [.date]
                         )
                         .datePickerStyle(.compact)
-                        .tint(.black)
+                        .tint(.primary)
                         .environment(\.locale, Locale(identifier: "ja_JP"))
                     }
                     Section(header: Text("分類")) {
@@ -1298,14 +1298,14 @@ struct ExpenseEditView: View {
                                 Text(item).tag(item)
                             }
                         }
-                        .tint(.black)
+                        .tint(.primary)
 
                         Picker("プロジェクト", selection: projectBinding) {
                             ForEach(projectOptions, id: \.self) { item in
                                 Text(item).tag(item)
                             }
                         }
-                        .tint(.black)
+                        .tint(.primary)
                     }
                     Section(header: Text("コメント")) {
                         VStack(alignment: .leading, spacing: 12) {
@@ -1319,10 +1319,10 @@ struct ExpenseEditView: View {
                                             note = sample
                                         }
                                         .font(.caption.weight(.semibold))
-                                        .foregroundColor(.black)
+                                        .foregroundColor(.primary)
                                         .padding(.horizontal, 10)
                                         .padding(.vertical, 8)
-                                        .background(Color.black.opacity(0.06))
+                                        .background(Color.primary.opacity(0.06))
                                         .clipShape(Capsule())
                                     }
                                 }
@@ -1342,7 +1342,7 @@ struct ExpenseEditView: View {
                                     Text("経費計上額: ¥\(Int(amount * businessRatio))").foregroundColor(.gray)
                                 }
                             }
-                            Slider(value: $businessRatio, in: 0...1.0, step: 0.1).tint(.black)
+                            Slider(value: $businessRatio, in: 0...1.0, step: 0.1).tint(.primary)
                         }
                         .padding(.vertical, 8)
                     }
@@ -1558,10 +1558,10 @@ struct CalendarHistoryView: View {
                     Text("経費を追加")
                         .font(.caption.weight(.semibold))
                 }
-                .foregroundColor(.white)
+                .foregroundColor(Color(UIColor.systemBackground))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Color.black)
+                .background(Color.primary)
                 .clipShape(Capsule())
             }
             .buttonStyle(.plain)
@@ -1594,7 +1594,7 @@ struct CalendarHistoryView: View {
                                                     }
                                                     Text(expense.title)
                                                         .font(.subheadline.weight(.semibold))
-                                                        .foregroundColor(.black)
+                                                        .foregroundColor(.primary)
                                                         .lineLimit(1)
                                                         .layoutPriority(1)
                                                     // タイトル右の空きスペースをコメントで埋める（1 行・末尾 "…" 省略）
@@ -1612,7 +1612,7 @@ struct CalendarHistoryView: View {
                                             Spacer()
                                             Text("¥\(Int(expense.effectiveAmount).formatted())")
                                                 .taxSuiteAmountStyle(size: 15, weight: .semibold, tracking: -0.2)
-                                                .foregroundColor(.black)
+                                                .foregroundColor(.primary)
                                         }
                                         .padding(.vertical, 2)
                                     }
@@ -1671,9 +1671,9 @@ struct CalendarHistoryView: View {
                 Button(action: { shiftMonth(by: -1) }) {
                     Image(systemName: "chevron.left")
                         .font(.subheadline.weight(.bold))
-                        .foregroundColor(.black)
+                        .foregroundColor(.primary)
                         .frame(width: 32, height: 32)
-                        .background(Color.black.opacity(0.05))
+                        .background(Color.primary.opacity(0.05))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -1686,10 +1686,10 @@ struct CalendarHistoryView: View {
                         HStack(spacing: 4) {
                             Text(displayedMonthTitle)
                                 .font(.headline)
-                                .foregroundColor(.black)
+                                .foregroundColor(.primary)
                             Image(systemName: "chevron.down")
                                 .font(.caption2.weight(.bold))
-                                .foregroundColor(.black.opacity(0.6))
+                                .foregroundColor(.primary.opacity(0.6))
                         }
                         Text("黄=0円 / 緑=支出あり")
                             .font(.caption2)
@@ -1705,9 +1705,9 @@ struct CalendarHistoryView: View {
                 Button(action: { shiftMonth(by: 1) }) {
                     Image(systemName: "chevron.right")
                         .font(.subheadline.weight(.bold))
-                        .foregroundColor(.black)
+                        .foregroundColor(.primary)
                         .frame(width: 32, height: 32)
-                        .background(Color.black.opacity(0.05))
+                        .background(Color.primary.opacity(0.05))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -1753,7 +1753,7 @@ struct CalendarHistoryView: View {
             }
         }
         .padding(16)
-        .background(Color.white)
+        .background(Color(UIColor.secondarySystemBackground))
         .cornerRadius(20)
         .padding(.horizontal, 20)
     }
@@ -1770,7 +1770,7 @@ struct CalendarHistoryView: View {
 
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(
-                    isSelected ? Color.black : (isToday ? Color.black.opacity(0.22) : Color.clear),
+                    isSelected ? Color.primary : (isToday ? Color.primary.opacity(0.22) : Color.clear),
                     lineWidth: isSelected ? 1.8 : 1
                 )
 
@@ -2024,7 +2024,7 @@ struct AllHistoryView: View {
         Button(action: { editingExpense.wrappedValue = expense }) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(expense.title).font(.subheadline.weight(.semibold)).foregroundColor(.black)
+                    Text(expense.title).font(.subheadline.weight(.semibold)).foregroundColor(.primary)
                     HStack {
                         Text(expense.project)
                             .font(.caption2)
@@ -2042,7 +2042,7 @@ struct AllHistoryView: View {
                 Spacer()
                 Text("¥\(Int(expense.effectiveAmount).formatted())")
                     .taxSuiteAmountStyle(size: 16, weight: .semibold, tracking: -0.2)
-                    .foregroundColor(.black)
+                    .foregroundColor(.primary)
             }
             .padding(.vertical, 2)
         }
@@ -2100,7 +2100,7 @@ struct TaxKnowledgeGlossaryView: View {
                                     VStack(alignment: .leading, spacing: 6) {
                                         Text(term.title)
                                             .font(.headline)
-                                            .foregroundColor(.black)
+                                            .foregroundColor(.primary)
                                         Text(term.summary)
                                             .font(.caption)
                                             .foregroundColor(.gray)
@@ -2145,7 +2145,7 @@ struct GlossaryTermDetailView: View {
 
                     Text(term.detail)
                         .font(.body)
-                        .foregroundColor(.black)
+                        .foregroundColor(.primary)
                         .lineSpacing(6)
 
                     if let sources = term.sources, !sources.isEmpty {
@@ -2266,7 +2266,7 @@ struct CSVPreviewView: View {
                 Text(expense.title)
                     .font(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.black)
+                    .foregroundColor(.primary)
 
                 HStack(spacing: 6) {
                     Text(expense.timestamp, format: .dateTime.month().day())
@@ -2461,7 +2461,7 @@ struct ReportDraftComposerView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text(preview.subject)
                             .font(.headline)
-                            .foregroundColor(.black)
+                            .foregroundColor(.primary)
 
                         Text(preview.body)
                             .font(.subheadline)
@@ -2509,7 +2509,7 @@ struct ReportDraftComposerView: View {
                     }
                     .listRowBackground(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(gmailDraftStatus == .success ? Color.green : Color.black)
+                            .fill(gmailDraftStatus == .success ? Color.green : Color.primary)
                             .padding(.vertical, 2)
                     )
                     .disabled(gmailDraftStatus == .creating)
@@ -2989,7 +2989,7 @@ struct SettingsView: View {
             .overlay {
                 if isMigratingProjects {
                     ZStack {
-                        Color.black.opacity(0.08)
+                        Color.primary.opacity(0.08)
                             .ignoresSafeArea()
 
                         VStack(spacing: 12) {
@@ -3305,7 +3305,7 @@ struct RecurringExpensesSettingsView: View {
                                     VStack(alignment: .leading, spacing: 6) {
                                         Text(recurringExpense.title)
                                             .font(.headline)
-                                            .foregroundColor(.black)
+                                            .foregroundColor(.primary)
                                         HStack(spacing: 8) {
                                             Text(recurringExpense.project)
                                                 .font(.caption2)
@@ -3326,7 +3326,7 @@ struct RecurringExpensesSettingsView: View {
                                     Spacer()
                                     Text("¥\(Int(recurringExpense.amount).formatted())")
                                         .taxSuiteAmountStyle(size: 17, weight: .semibold, tracking: -0.2)
-                                        .foregroundColor(.black)
+                                        .foregroundColor(.primary)
                                 }
                                 .padding(.vertical, 4)
                             }
@@ -3421,10 +3421,10 @@ struct RecurringExpenseEditView: View {
                                             note = sample
                                         }
                                         .font(.caption.weight(.semibold))
-                                        .foregroundColor(.black)
+                                        .foregroundColor(.primary)
                                         .padding(.horizontal, 10)
                                         .padding(.vertical, 8)
-                                        .background(Color.black.opacity(0.06))
+                                        .background(Color.primary.opacity(0.06))
                                         .clipShape(Capsule())
                                     }
                                 }
@@ -3751,7 +3751,7 @@ private struct GmailMessageRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(message.subject.isEmpty ? "(件名なし)" : message.subject)
                     .font(.body.weight(.semibold))
-                    .foregroundColor(.black)
+                    .foregroundColor(.primary)
                     .lineLimit(2)
 
                 Text(message.from)
@@ -3771,7 +3771,7 @@ private struct GmailMessageRow: View {
                     Text("¥\(Int(amount).formatted())")
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .monospacedDigit()
-                        .foregroundColor(.black)
+                        .foregroundColor(.primary)
                 } else {
                     Text("金額不明")
                         .font(.caption2)
@@ -3841,8 +3841,8 @@ struct ReceiptImportView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
-                            .background(Color.black)
-                            .foregroundColor(.white)
+                            .background(Color.primary)
+                            .foregroundColor(Color(UIColor.systemBackground))
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         }
                         .buttonStyle(.plain)
@@ -3880,7 +3880,7 @@ struct ReceiptImportView: View {
                                                 Text("計上: ¥\(Int(amt * draft.businessRatio))").font(.caption2).foregroundColor(.gray)
                                             }
                                         }
-                                        Slider(value: $draft.businessRatio, in: 0...1.0, step: 0.1).tint(.black)
+                                        Slider(value: $draft.businessRatio, in: 0...1.0, step: 0.1).tint(.primary)
                                     }
                                 } else {
                                     Button {
@@ -3917,7 +3917,7 @@ struct ReceiptImportView: View {
                             withAnimation { drafts.append(ReceiptBatchDraft()) }
                         } label: {
                             Label("明細を手動追加", systemImage: "plus.circle")
-                                .foregroundColor(.black)
+                                .foregroundColor(.primary)
                         }
                     }
                 }
@@ -4026,10 +4026,10 @@ struct ProUpgradeView: View {
                     dismiss()
                 }
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(Color(UIColor.systemBackground))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
-                .background(Color.black)
+                .background(Color.primary)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .padding(.horizontal, 24)
 
@@ -4093,7 +4093,7 @@ struct WidgetButtonSettingsView: View {
                             }
                         } label: {
                             Label("ショートカットを追加", systemImage: "plus.circle.fill")
-                                .foregroundColor(.black)
+                                .foregroundColor(.primary)
                         }
                     }
                 }
@@ -4179,7 +4179,7 @@ struct WidgetButtonSettingsView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.black.opacity(0.05), lineWidth: 1)
+                    .stroke(Color.primary.opacity(0.05), lineWidth: 1)
             )
             .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }

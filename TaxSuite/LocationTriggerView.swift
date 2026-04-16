@@ -58,11 +58,11 @@ struct LocationTriggersView: View {
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "plus.circle.fill")
-                                .foregroundColor(.black)
+                                .foregroundColor(.primary)
                                 .font(.system(size: 20))
                             Text("場所を追加")
                                 .font(.headline)
-                                .foregroundColor(.black)
+                                .foregroundColor(.primary)
                         }
                         .padding(.vertical, 4)
                     }
@@ -162,7 +162,7 @@ struct LocationTriggersView: View {
                     }
                 ))
                 .labelsHidden()
-                .tint(.black)
+                .tint(.primary)
             }
             .contentShape(Rectangle())
         }
@@ -265,7 +265,7 @@ struct LocationTriggerEditView: View {
                                         } label: {
                                             HStack {
                                                 Image(systemName: "mappin")
-                                                    .foregroundColor(.black)
+                                                    .foregroundColor(.primary)
                                                     .frame(width: 20)
                                                 VStack(alignment: .leading, spacing: 2) {
                                                     Text(item.name ?? "")
@@ -299,7 +299,7 @@ struct LocationTriggerEditView: View {
                                             .blur(radius: 4)
                                         Image(systemName: "mappin.circle.fill")
                                             .font(.system(size: 32))
-                                            .foregroundColor(.black)
+                                            .foregroundColor(.primary)
                                             .shadow(radius: 4)
                                     }
                                 }
@@ -321,7 +321,7 @@ struct LocationTriggerEditView: View {
                             } label: {
                                 Label("現在の地図中心を場所に設定", systemImage: "scope")
                                     .font(.caption.weight(.semibold))
-                                    .foregroundColor(.black)
+                                    .foregroundColor(.primary)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 8)
                                     .background(Color.black.opacity(0.07))
@@ -350,7 +350,7 @@ struct LocationTriggerEditView: View {
                                     .font(.subheadline.monospacedDigit().weight(.semibold))
                             }
                             Slider(value: $radius, in: 50...500, step: 25)
-                                .tint(.black)
+                                .tint(.primary)
                         }
                     }
 
