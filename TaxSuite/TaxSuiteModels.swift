@@ -55,6 +55,10 @@ final class ExpenseItem {
     var businessRatio: Double = 1.0
     var note: String = ""
     var recurringExpenseID: String? = nil
+    /// ジオフェンス（場所トリガー）由来で追加された場合にトリガー名を保持する。
+    /// 手動追加・ウィジェット・定期支出などから追加されたものは nil のまま。
+    /// 一覧表示で「自動記録」バッジを出す判定に使う。
+    var locationTriggerName: String? = nil
 
     init(
         timestamp: Date = Date(),
@@ -64,7 +68,8 @@ final class ExpenseItem {
         project: String = TaxSuiteWidgetStore.fallbackProjectName(),
         businessRatio: Double = 1.0,
         note: String = "",
-        recurringExpenseID: String? = nil
+        recurringExpenseID: String? = nil,
+        locationTriggerName: String? = nil
     ) {
         self.timestamp = timestamp
         self.createdAt = Date()
@@ -75,6 +80,7 @@ final class ExpenseItem {
         self.businessRatio = businessRatio
         self.note = note
         self.recurringExpenseID = recurringExpenseID
+        self.locationTriggerName = locationTriggerName
     }
 
     var effectiveAmount: Double { amount * businessRatio }

@@ -220,7 +220,7 @@ struct DashboardView: View {
                     .simultaneousGesture(
                         TapGesture().onEnded {
                             if swipeRevealedExpenseID != nil {
-                                withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
                                     swipeRevealedExpenseID = nil
                                 }
                             }
@@ -739,13 +739,13 @@ struct DashboardView: View {
                                 }
                             },
                             onSwipeReveal: {
-                                withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
                                     swipeRevealedExpenseID = expense.persistentModelID
                                 }
                             },
                             onSwipeReset: {
                                 if swipeRevealedExpenseID == expense.persistentModelID {
-                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                                    withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
                                         swipeRevealedExpenseID = nil
                                     }
                                 }
@@ -870,6 +870,14 @@ struct TodayExpenseRow: View {
                                 .lineLimit(1)
                         }
                         HStack(spacing: 6) {
+                            // ジオフェンス由来なら「自動記録」を示すピンを先頭に。
+                            // 設定のトリガー一覧と同じ `mappin.circle.fill` を使って視覚的に揃える。
+                            if expense.locationTriggerName != nil {
+                                Image(systemName: "mappin.circle.fill")
+                                    .font(.caption2)
+                                    .foregroundColor(Color(red: 0.22, green: 0.55, blue: 0.30))
+                                    .accessibilityLabel("自動記録")
+                            }
                             Text(expense.project)
                                 .font(.caption2)
                                 .foregroundColor(.gray)
@@ -906,12 +914,15 @@ struct TodayExpenseRow: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white)
+            // ジオフェンス由来は薄緑背景でカレンダーのヒートマップと同じ世界観に寄せる
+            .background(expense.locationTriggerName != nil
+                        ? Color(red: 0.89, green: 0.96, blue: 0.90)
+                        : Color.white)
             .cornerRadius(15)
             .shadow(color: .black.opacity(0.02), radius: 3, x: 0, y: 2)
             .offset(x: effectiveOffset)
-            .animation(.spring(response: 0.22, dampingFraction: 0.82), value: isSwipeRevealed)
-            .animation(.spring(response: 0.22, dampingFraction: 0.82), value: isSelectionMode)
+            .animation(.spring(response: 0.32, dampingFraction: 0.86), value: isSwipeRevealed)
+            .animation(.spring(response: 0.32, dampingFraction: 0.86), value: isSelectionMode)
             .gesture(swipeGesture)
             .contentShape(Rectangle())
             .onTapGesture(perform: onTap)
@@ -922,31 +933,27 @@ struct TodayExpenseRow: View {
             }
 
             // 削除ボタン（前面）— カードのタップが優先されないよう最後に重ねる
-            // カレンダー側の `.swipeActions` と同じ見え方になるよう、右端だけ角丸にして
-            // カードの縁と地続きに見せる。幅やアイコンサイズも iOS 標準に寄せる。
+            // iOS 標準の `.swipeActions` と同じように、カード右端から少し浮いた
+            // 丸ボタン風に仕上げる（カレンダー側の見た目と統一）。
             if !isSelectionMode {
                 Button(action: onDelete) {
                     VStack(spacing: 3) {
                         Image(systemName: "trash.fill")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.system(size: 16, weight: .semibold))
                         Text("削除")
                             .font(.caption2.weight(.semibold))
                     }
                     .foregroundColor(.white)
-                    .frame(width: actionWidth)
-                    .frame(maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(
-                        UnevenRoundedRectangle(
-                            topLeadingRadius: 0,
-                            bottomLeadingRadius: 0,
-                            bottomTrailingRadius: 15,
-                            topTrailingRadius: 15,
-                            style: .continuous
-                        )
-                        .fill(Color.red)
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(Color.red)
                     )
+                    .padding(.vertical, 6)
+                    .padding(.trailing, 4)
                 }
                 .buttonStyle(.plain)
+                .frame(width: actionWidth)
                 // 露出していないときはタップされないよう無効化
                 .allowsHitTesting(isSwipeRevealed)
                 .opacity(effectiveOffset < -8 ? 1 : 0)
@@ -964,24 +971,36 @@ struct TodayExpenseRow: View {
                 dragOffset = value.translation.width
             }
             .onEnded { value in
-                defer { dragOffset = 0 }
-                guard !isSelectionMode else { return }
+                guard !isSelectionMode else {
+                    dragOffset = 0
+                    return
+                }
                 let horizontal = value.translation.width
                 let predicted = value.predictedEndTranslation.width
-                guard abs(horizontal) > abs(value.translation.height) else { return }
+                guard abs(horizontal) > abs(value.translation.height) else {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                        dragOffset = 0
+                    }
+                    return
+                }
 
                 // 位置（距離）または速度（予測終点）のいずれかが左方向に十分なら露出確定
                 let shouldReveal = horizontal < -revealThreshold || predicted < -velocityCommitThreshold
                 // 右方向は、露出中のみリセットに倒す。距離でも速度でも判定。
                 let shouldReset = horizontal > revealThreshold || predicted > velocityCommitThreshold
 
-                if shouldReveal {
-                    onSwipeReveal()
-                } else if shouldReset, isSwipeRevealed {
-                    onSwipeReset()
-                } else if !isSwipeRevealed {
-                    // しきい値未満の左スワイプは元に戻す
-                    onSwipeReset()
+                // dragOffset のゼロ復帰と親コールバックを同じスプリングで駆動し、
+                // finger リリース時のスナップをヌルッと繋げる。
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                    dragOffset = 0
+                    if shouldReveal {
+                        onSwipeReveal()
+                    } else if shouldReset, isSwipeRevealed {
+                        onSwipeReset()
+                    } else if !isSwipeRevealed {
+                        // しきい値未満の左スワイプは元に戻す
+                        onSwipeReset()
+                    }
                 }
             }
     }
@@ -1134,6 +1153,8 @@ struct ExpenseEditView: View {
     var initialCategory: String = ""
     var initialProject: String = ""
     var initialDate: Date = Date()
+    /// ジオフェンス通知から開かれた場合にトリガー名を受け取り、保存時に ExpenseItem へ付与する。
+    var initialLocationTriggerName: String? = nil
 
     @State private var title: String = ""
     @State private var amountText: String = ""
@@ -1355,7 +1376,8 @@ struct ExpenseEditView: View {
                     category: category,
                     project: project,
                     businessRatio: businessRatio,
-                    note: note
+                    note: note,
+                    locationTriggerName: initialLocationTriggerName
                 )
             )
         }
@@ -1510,7 +1532,16 @@ struct CalendarHistoryView: View {
                                     Button(action: { editingExpense = expense }) {
                                         HStack {
                                             VStack(alignment: .leading, spacing: 3) {
-                                                Text(expense.title).font(.subheadline.weight(.semibold)).foregroundColor(.black)
+                                                HStack(spacing: 5) {
+                                                    // ジオフェンス由来なら設定と同じピンで「自動記録」を示す
+                                                    if expense.locationTriggerName != nil {
+                                                        Image(systemName: "mappin.circle.fill")
+                                                            .font(.caption2)
+                                                            .foregroundColor(Color(red: 0.22, green: 0.55, blue: 0.30))
+                                                            .accessibilityLabel("自動記録")
+                                                    }
+                                                    Text(expense.title).font(.subheadline.weight(.semibold)).foregroundColor(.black)
+                                                }
                                                 Text(expense.project).font(.caption2).foregroundColor(.gray)
                                                 if !expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                                     Text(expense.note).font(.caption2).foregroundColor(.secondary).lineLimit(1)
@@ -1523,6 +1554,12 @@ struct CalendarHistoryView: View {
                                         }
                                         .padding(.vertical, 2)
                                     }
+                                    // ジオフェンス由来はリスト行全体を薄緑にしてヒートマップと揃える
+                                    .listRowBackground(
+                                        expense.locationTriggerName != nil
+                                            ? Color(red: 0.89, green: 0.96, blue: 0.90)
+                                            : Color(UIColor.secondarySystemGroupedBackground)
+                                    )
                                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                         Button(role: .destructive) {
                                             deleteDailyExpense(expense)
