@@ -825,6 +825,9 @@ struct TodayExpenseRow: View {
     let onDelete: () -> Void
 
     @State private var dragOffset: CGFloat = 0
+    /// 長押しが発火する前の「押されている」状態。指が触れているあいだ true になり、
+    /// カード全体に軽い縮小と色のオーバーレイをかけて押下感を出す。
+    @State private var isPressing: Bool = false
 
     // 削除ボタン領域の幅。iOS 標準のスワイプアクションのコンパクトさに合わせる。
     private let actionWidth: CGFloat = 74
@@ -924,18 +927,38 @@ struct TodayExpenseRow: View {
             .background(expense.locationTriggerName != nil
                         ? Color(red: 0.89, green: 0.96, blue: 0.90)
                         : Color.white)
+            // 長押しで押し込まれている間は、わずかにカードが暗くなる。
+            // 押下感を出すために薄いブラックのオーバーレイを重ねる。
+            .overlay(
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .fill(Color.black.opacity(isPressing ? 0.06 : 0))
+                    .allowsHitTesting(false)
+            )
             .cornerRadius(15)
             .shadow(color: .black.opacity(0.02), radius: 3, x: 0, y: 2)
+            // 長押し中に 0.97 まで縮む。release or 長押し完了で 1.0 に戻る。
+            .scaleEffect(isPressing ? 0.97 : 1.0)
             .offset(x: effectiveOffset)
             .animation(.spring(response: 0.32, dampingFraction: 0.86), value: isSwipeRevealed)
             .animation(.spring(response: 0.32, dampingFraction: 0.86), value: isSelectionMode)
+            .animation(.spring(response: 0.28, dampingFraction: 0.78), value: isPressing)
             .gesture(swipeGesture)
             .contentShape(Rectangle())
             .onTapGesture(perform: onTap)
             .onLongPressGesture(minimumDuration: 0.45) {
                 let generator = UIImpactFeedbackGenerator(style: .medium)
                 generator.impactOccurred()
+                isPressing = false
                 onLongPress()
+            } onPressingChanged: { pressing in
+                // 指が触れた瞬間から押下感（縮小＋オーバーレイ）を出す。
+                // 触れた瞬間のみ軽い触覚フィードバックを付ける（選択モード遷移の
+                // medium より弱い .soft で「反応した」ことだけ伝える）。
+                if pressing {
+                    let tap = UIImpactFeedbackGenerator(style: .soft)
+                    tap.impactOccurred()
+                }
+                isPressing = pressing
             }
 
             // 削除ボタン（前面）— カードのタップが優先されないよう最後に重ねる
