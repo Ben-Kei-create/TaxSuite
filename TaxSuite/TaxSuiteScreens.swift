@@ -206,7 +206,7 @@ struct DashboardView: View {
         NavigationStack {
             TaxSuiteScreenSurface {
                 ZStack(alignment: .bottom) {
-                    ScrollView(showsIndicators: false) {
+                    ScrollView {
                         VStack(spacing: 26) {
                             mainMetricCard
                             quickAddSection
@@ -216,6 +216,9 @@ struct DashboardView: View {
                         .padding(.top, 6)
                         .padding(.bottom, 20)
                     }
+                    // スクロール時に右端へ iOS 標準の細いインジケータを出す。
+                    // `.automatic` は触った瞬間だけ出て、停止するとフェードアウトする挙動。
+                    .scrollIndicators(.automatic)
                     // スワイプで開いている行があるときに背景をタップすると閉じられるようにする
                     .simultaneousGesture(
                         TapGesture().onEnded {
