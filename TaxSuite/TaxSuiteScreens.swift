@@ -1199,6 +1199,7 @@ struct ExpenseEditView: View {
     var initialAmount: String = ""
     var initialCategory: String = ""
     var initialProject: String = ""
+    var initialNote: String = ""
     var initialDate: Date = Date()
     /// ジオフェンス通知から開かれた場合にトリガー名を受け取り、保存時に ExpenseItem へ付与する。
     var initialLocationTriggerName: String? = nil
@@ -1401,7 +1402,7 @@ struct ExpenseEditView: View {
             title = initialTitle
             amountText = initialAmount
             selectedDate = initialDate   // カレンダーなどから指定された日付を使用
-            note = ""
+            note = initialNote
             if !initialCategory.isEmpty {
                 category = initialCategory
                 hasManualCategoryOverride = true
@@ -2211,6 +2212,202 @@ struct GlossaryTermDetailView: View {
     }
 }
 
+// MARK: - ExpenseGuideView
+
+private struct ExpenseGuideTemplate: Identifiable {
+    let id = UUID()
+    let title: String
+    let category: String
+    let note: String
+}
+
+private struct ExpenseGuideProfession: Identifiable {
+    let id: String
+    let name: String
+    let icon: String
+    let templates: [ExpenseGuideTemplate]
+}
+
+struct ExpenseGuideView: View {
+    @State private var selectedProfessionID: String = "common"
+    @State private var addingTemplate: ExpenseGuideTemplate?
+
+    private static let professions: [ExpenseGuideProfession] = [
+        ExpenseGuideProfession(id: "common", name: "共通", icon: "person.fill", templates: [
+            ExpenseGuideTemplate(title: "書籍・参考書",       category: "新聞図書費",   note: "仕事に関連する書籍・参考資料"),
+            ExpenseGuideTemplate(title: "打ち合わせ交通費",   category: "旅費交通費",   note: "打ち合わせ先への往復交通費（電車・バス等）"),
+            ExpenseGuideTemplate(title: "カフェ（打ち合わせ）", category: "会議費",     note: "取引先との打ち合わせ時のカフェ・飲食代"),
+            ExpenseGuideTemplate(title: "スマホ通信費",       category: "通信費",       note: "業務用スマートフォンの月額通信費（按分あり）"),
+            ExpenseGuideTemplate(title: "自宅家賃（在宅分）", category: "地代家賃",     note: "在宅ワーク分の家賃（事業割合で按分）"),
+            ExpenseGuideTemplate(title: "電気代（在宅分）",   category: "水道光熱費",   note: "在宅作業時の電気代（事業割合で按分）"),
+            ExpenseGuideTemplate(title: "SaaS・ツール月額",   category: "通信費",       note: "業務で使うソフトウェア・アプリの月額利用料"),
+        ]),
+        ExpenseGuideProfession(id: "engineer", name: "エンジニア", icon: "laptopcomputer", templates: [
+            ExpenseGuideTemplate(title: "AWSサーバー代",       category: "通信費",     note: "本番・開発環境のクラウドインフラ費用"),
+            ExpenseGuideTemplate(title: "ドメイン取得・更新", category: "通信費",       note: "サービスやポートフォリオ用ドメイン代"),
+            ExpenseGuideTemplate(title: "GitHub / GitLab",    category: "通信費",       note: "ソースコード管理ツールの月額利用料"),
+            ExpenseGuideTemplate(title: "技術書・オンライン講座", category: "新聞図書費", note: "スキルアップ用書籍・Udemy等の動画講座"),
+            ExpenseGuideTemplate(title: "キーボード・マウス", category: "消耗品費",     note: "業務用入力デバイスの購入費"),
+            ExpenseGuideTemplate(title: "モニター・ディスプレイ", category: "消耗品費", note: "作業効率向上のための外部ディスプレイ購入"),
+        ]),
+        ExpenseGuideProfession(id: "designer", name: "デザイナー", icon: "paintbrush.fill", templates: [
+            ExpenseGuideTemplate(title: "Adobe Creative Cloud", category: "通信費",    note: "Illustrator・Photoshop等のサブスク月額"),
+            ExpenseGuideTemplate(title: "Figma",               category: "通信費",     note: "UIデザイン・プロトタイプ作成ツールの月額利用料"),
+            ExpenseGuideTemplate(title: "商用フォント購入",    category: "消耗品費",    note: "ロゴ・資料制作用フォントのライセンス料"),
+            ExpenseGuideTemplate(title: "素材・ストック画像",  category: "消耗品費",    note: "写真・アイコン素材の購入費"),
+            ExpenseGuideTemplate(title: "外付けSSD・HDD",      category: "消耗品費",    note: "制作データのバックアップ用ストレージ"),
+            ExpenseGuideTemplate(title: "カラーキャリブレーター", category: "消耗品費", note: "モニター色精度管理ツールの購入"),
+        ]),
+        ExpenseGuideProfession(id: "writer", name: "ライター", icon: "pencil", templates: [
+            ExpenseGuideTemplate(title: "取材交通費",           category: "旅費交通費", note: "記事・コラム取材のための現地移動費"),
+            ExpenseGuideTemplate(title: "体験・入場料（取材）", category: "会議費",     note: "記事ネタのための施設・イベント参加費"),
+            ExpenseGuideTemplate(title: "Webホスティング",      category: "通信費",     note: "ブログ・オウンドメディアのサーバー費用"),
+            ExpenseGuideTemplate(title: "SEO・分析ツール",      category: "通信費",     note: "キーワード調査・アクセス解析ツールの月額費"),
+            ExpenseGuideTemplate(title: "文具・ノート",         category: "消耗品費",   note: "取材メモ・構成案作成用の文房具類"),
+        ]),
+        ExpenseGuideProfession(id: "creator", name: "動画クリエイター", icon: "video.fill", templates: [
+            ExpenseGuideTemplate(title: "動画編集ソフト",     category: "通信費",       note: "Premiere Pro・DaVinci Resolve等の利用料"),
+            ExpenseGuideTemplate(title: "BGM・SE素材",        category: "消耗品費",     note: "動画BGM・効果音素材の購入・利用費"),
+            ExpenseGuideTemplate(title: "撮影機材消耗品",     category: "消耗品費",     note: "SDカード・バッテリー・フィルター等"),
+            ExpenseGuideTemplate(title: "マイク・音声機器",   category: "消耗品費",     note: "収録用マイクやオーディオインターフェース"),
+            ExpenseGuideTemplate(title: "ロケ地交通費",       category: "旅費交通費",   note: "撮影現地への移動交通費"),
+            ExpenseGuideTemplate(title: "クラウドストレージ", category: "通信費",       note: "動画素材・データ保管用クラウドの月額費"),
+        ]),
+        ExpenseGuideProfession(id: "photographer", name: "フォトグラファー", icon: "camera.fill", templates: [
+            ExpenseGuideTemplate(title: "カメラ消耗品",         category: "消耗品費",   note: "SDカード・バッテリー・フィルター等"),
+            ExpenseGuideTemplate(title: "現像・プリント費",     category: "消耗品費",   note: "写真の現像・印刷・プリントアウト費用"),
+            ExpenseGuideTemplate(title: "スタジオレンタル",     category: "地代家賃",   note: "撮影スタジオの使用料"),
+            ExpenseGuideTemplate(title: "写真編集ソフト",       category: "通信費",     note: "Lightroom・Photoshop等の月額利用料"),
+            ExpenseGuideTemplate(title: "ポートフォリオサイト", category: "通信費",     note: "作品掲載サイトのサーバー・ドメイン代"),
+        ]),
+        ExpenseGuideProfession(id: "consultant", name: "コンサルタント", icon: "briefcase.fill", templates: [
+            ExpenseGuideTemplate(title: "名刺・印刷物",   category: "消耗品費",         note: "商談・営業用の名刺印刷費"),
+            ExpenseGuideTemplate(title: "接待・会食費",   category: "接待交際費",       note: "クライアントとの接待・会食費"),
+            ExpenseGuideTemplate(title: "セミナー参加費", category: "新聞図書費",       note: "業界セミナー・研修への参加費"),
+            ExpenseGuideTemplate(title: "提案書印刷・製本", category: "消耗品費",       note: "クライアント向け提案書の印刷・製本費"),
+        ]),
+        ExpenseGuideProfession(id: "instructor", name: "講師・インストラクター", icon: "person.2.fill", templates: [
+            ExpenseGuideTemplate(title: "教材・テキスト費",   category: "新聞図書費",   note: "授業・講座で使用する教材・テキスト代"),
+            ExpenseGuideTemplate(title: "会場使用料",         category: "地代家賃",     note: "講義・ワークショップ開催の会場費"),
+            ExpenseGuideTemplate(title: "Zoom・配信ツール",   category: "通信費",       note: "オンライン授業・配信プラットフォームの月額費"),
+            ExpenseGuideTemplate(title: "配布資料印刷費",     category: "消耗品費",     note: "受講者への配布レジュメ・テキスト印刷費"),
+        ]),
+    ]
+
+    private var selectedProfession: ExpenseGuideProfession {
+        Self.professions.first { $0.id == selectedProfessionID } ?? Self.professions[0]
+    }
+
+    var body: some View {
+        TaxSuiteScreenSurface {
+            List {
+                Section {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("職業別 経費ガイド")
+                            .font(.title3.bold())
+                        Text("よく使われる経費をサンプルとして追加できます。タップして金額を入力し保存してください。")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.vertical, 2)
+                }
+
+                Section {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(Self.professions) { profession in
+                                Button {
+                                    selectedProfessionID = profession.id
+                                } label: {
+                                    HStack(spacing: 5) {
+                                        Image(systemName: profession.icon)
+                                            .font(.system(size: 11, weight: .semibold))
+                                        Text(profession.name)
+                                            .font(.subheadline.weight(.semibold))
+                                    }
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        selectedProfessionID == profession.id
+                                            ? Color.accentColor
+                                            : Color.primary.opacity(0.07)
+                                    )
+                                    .foregroundColor(
+                                        selectedProfessionID == profession.id ? .white : .primary
+                                    )
+                                    .clipShape(Capsule())
+                                }
+                                .buttonStyle(.plain)
+                                .animation(.easeInOut(duration: 0.15), value: selectedProfessionID)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+
+                Section("よく使われる経費") {
+                    ForEach(selectedProfession.templates) { template in
+                        Button {
+                            addingTemplate = template
+                        } label: {
+                            HStack(alignment: .center, spacing: 12) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(template.title)
+                                        .font(.body.weight(.medium))
+                                        .foregroundColor(.primary)
+                                    Text(template.note)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(2)
+                                }
+                                Spacer()
+                                VStack(alignment: .trailing, spacing: 6) {
+                                    Text(template.category)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundColor(.blue)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.blue.opacity(0.1))
+                                        .clipShape(Capsule())
+                                    Image(systemName: "plus.circle.fill")
+                                        .font(.system(size: 22))
+                                        .foregroundColor(.accentColor)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                Section {
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: "info.circle")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.top, 1)
+                        Text("追加後に金額を入力してください。金額なしでは保存できません。")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+        }
+        .navigationTitle("経費ガイド")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $addingTemplate) { template in
+            ExpenseEditView(
+                expense: nil,
+                initialTitle: template.title,
+                initialCategory: template.category,
+                initialNote: template.note
+            )
+        }
+    }
+}
+
 struct CSVPreviewView: View {
     @Query(sort: \ExpenseItem.timestamp, order: .reverse) private var expenses: [ExpenseItem]
 
@@ -3001,6 +3198,14 @@ struct SettingsView: View {
                                 tint: .green,
                                 title: "税の知識ミニ辞典",
                                 subtitle: "用語や控除をすぐに確認"
+                            )
+                        }
+                        NavigationLink(destination: ExpenseGuideView()) {
+                            settingsNavContent(
+                                icon: "list.bullet.rectangle.portrait.fill",
+                                tint: .orange,
+                                title: "職業別 経費ガイド",
+                                subtitle: "職業から使える経費を確認・追加"
                             )
                         }
                     }
