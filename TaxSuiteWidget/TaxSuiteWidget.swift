@@ -7,7 +7,6 @@ import AppIntents
 struct TaxSuiteEntry: TimelineEntry {
     let date: Date
     let snapshot: TaxSuiteWidgetSnapshot
-    /// App Group から読み込んだクイック追加ボタンのスロット設定（4 件）
     let buttonSlots: [WidgetButtonSlot]
 }
 
@@ -47,108 +46,123 @@ struct TaxSuiteWidgetView: View {
         switch family {
         case .systemSmall:  smallView
         case .systemMedium: mediumView
-        default:            smallView
+        default:            mediumView
         }
     }
 
-    // MARK: Small
+    // MARK: Small — 全体タップでアプリを開く
 
     var smallView: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            widgetHeader
+        VStack(alignment: .leading, spacing: 8) {
+            headerRow
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 4) {
-                    Image(systemName: "yensign.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("推定手取り")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            VStack(alignment: .leading, spacing: 2) {
+                Text("推定手取り")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
                 Text(currency(entry.snapshot.takeHome))
-                    .font(.system(size: 28, weight: .bold, design: .rounded).monospacedDigit())
+                    .font(.system(size: 26, weight: .bold, design: .rounded).monospacedDigit())
                     .lineLimit(1)
-                    .minimumScaleFactor(0.65)
+                    .minimumScaleFactor(0.6)
                     .foregroundStyle(.primary)
             }
 
             progressBar
 
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 summaryPill(icon: "sun.max.fill", value: currency(entry.snapshot.todayExpensesTotal))
-                summaryPill(icon: "clock.fill", value: entry.snapshot.recentExpenseTitle ?? "未記録")
+                summaryPill(icon: "clock.fill",   value: entry.snapshot.recentExpenseTitle ?? "未記録")
             }
         }
-        .padding()
+        .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .widgetURL(URL(string: "taxsuite://dashboard"))
         .containerBackground(for: .widget) { widgetBackground }
     }
 
-    // MARK: Medium
+    // MARK: Medium — 左パネルタップでアプリ、右ボタンで即時記録
 
     var mediumView: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            widgetHeader
+        HStack(alignment: .top, spacing: 10) {
 
-            HStack(alignment: .top, spacing: 10) {
-                // 左パネル: 財務サマリー
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "yensign.circle.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+            // 左パネル: 推定手取り（タップでアプリを開く）
+            Link(destination: URL(string: "taxsuite://dashboard")!) {
+                VStack(alignment: .leading, spacing: 6) {
+                    headerRow
+
+                    VStack(alignment: .leading, spacing: 2) {
                         Text("推定手取り")
-                            .font(.caption2)
+                            .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.secondary)
+                        Text(currency(entry.snapshot.takeHome))
+                            .font(.system(size: 26, weight: .bold, design: .rounded).monospacedDigit())
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .foregroundStyle(.primary)
                     }
-                    Text(currency(entry.snapshot.takeHome))
-                        .font(.system(size: 28, weight: .bold, design: .rounded).monospacedDigit())
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.62)
-                        .foregroundStyle(.primary)
 
                     progressBar
 
-                    VStack(spacing: 6) {
-                        compactMetricRow(icon: "sun.max.fill",    value: currency(entry.snapshot.todayExpensesTotal))
-                        compactMetricRow(icon: "calendar",        value: currency(entry.snapshot.currentMonthExpenses))
-                        compactMetricRow(icon: "clock.fill",      value: entry.snapshot.recentExpenseTitle ?? "未記録")
+                    VStack(spacing: 4) {
+                        compactMetricRow(icon: "sun.max.fill", value: currency(entry.snapshot.todayExpensesTotal))
+                        compactMetricRow(icon: "calendar",     value: currency(entry.snapshot.currentMonthExpenses))
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(14)
+                .padding(12)
                 .background(Color.white.opacity(0.62))
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
 
-                // 右パネル: 動的クイック追加ボタン（App Group から読み込み）
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "bolt.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Text("すぐ記録")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.leading, 2)
+            // 右パネル: ショートカット（即時記録）
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 4) {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Text("すぐ記録")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.leading, 2)
 
-                    LazyVGrid(
-                        columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)],
-                        spacing: 6
-                    ) {
-                        ForEach(entry.buttonSlots) { slot in
-                            quickAddButton(slot: slot)
-                        }
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)],
+                    spacing: 6
+                ) {
+                    ForEach(entry.buttonSlots) { slot in
+                        quickAddButton(slot: slot)
                     }
                 }
-                .frame(width: 138, alignment: .topLeading)
             }
+            .frame(width: 138, alignment: .topLeading)
         }
-        .padding()
+        .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .containerBackground(for: .widget) { widgetBackground }
+    }
+
+    // MARK: - Header Row（コンパクト、オーバーフローなし）
+
+    private var headerRow: some View {
+        HStack(spacing: 0) {
+            Text(entry.snapshot.monthLabel)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .layoutPriority(0)
+            Spacer(minLength: 6)
+            Text(progressLabel)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Color(red: 0.12, green: 0.33, blue: 0.18))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color(red: 0.88, green: 0.95, blue: 0.89))
+                .clipShape(Capsule())
+        }
     }
 
     // MARK: - Quick Add Button（動的スロットから生成）
@@ -198,13 +212,11 @@ struct TaxSuiteWidgetView: View {
         .disabled(slot.title.isEmpty || slot.amount <= 0)
     }
 
-    /// カテゴリまたはタイトルから最適な SF Symbol 名を推定する
     private func iconName(for slot: WidgetButtonSlot) -> String {
         if slot.title.isEmpty { return "questionmark.circle" }
         let title = slot.title
         let category = slot.category
 
-        // タイトル優先のキーワードマッチ（よく使う固有表現）
         let titleMap: [(String, String)] = [
             ("カフェ",   "cup.and.saucer.fill"),
             ("コーヒー", "cup.and.saucer.fill"),
@@ -225,7 +237,6 @@ struct TaxSuiteWidgetView: View {
             return icon
         }
 
-        // カテゴリへのフォールバック
         switch category {
         case "交通費":       return "tram.fill"
         case "会議費":       return "cup.and.saucer.fill"
@@ -246,29 +257,6 @@ struct TaxSuiteWidgetView: View {
     }
 
     // MARK: - Shared sub-views
-
-    private var widgetHeader: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "chart.pie.fill")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(entry.snapshot.monthLabel)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.tertiary)
-            Spacer()
-            HStack(spacing: 3) {
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                    .font(.system(size: 9, weight: .bold))
-                Text(progressLabel)
-                    .font(.caption2.weight(.semibold))
-            }
-            .foregroundStyle(Color(red: 0.12, green: 0.33, blue: 0.18))
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(Color(red: 0.88, green: 0.95, blue: 0.89))
-            .clipShape(Capsule())
-        }
-    }
 
     private var widgetBackground: some View {
         LinearGradient(
@@ -400,10 +388,10 @@ private extension TaxSuiteWidgetSnapshot {
         date: .now,
         snapshot: .preview,
         buttonSlots: [
-            WidgetButtonSlot(id: 0, title: "スタバ",   amount: 750,  category: "会議費",     project: TaxSuiteWidgetSupport.defaultProjectNames[0]),
-            WidgetButtonSlot(id: 1, title: "新幹線",   amount: 6600, category: "交通費",     project: TaxSuiteWidgetSupport.defaultProjectNames[1]),
-            WidgetButtonSlot(id: 2, title: "AWS",      amount: 3200, category: "通信費",     project: TaxSuiteWidgetSupport.defaultProjectNames[0]),
-            WidgetButtonSlot(id: 3, title: "書籍",     amount: 2200, category: "消耗品費",   project: TaxSuiteWidgetSupport.defaultProjectNames[2])
+            WidgetButtonSlot(id: 0, title: "スタバ",   amount: 750,  category: "会議費",   project: TaxSuiteWidgetSupport.defaultProjectNames[0]),
+            WidgetButtonSlot(id: 1, title: "新幹線",   amount: 6600, category: "交通費",   project: TaxSuiteWidgetSupport.defaultProjectNames[1]),
+            WidgetButtonSlot(id: 2, title: "AWS",      amount: 3200, category: "通信費",   project: TaxSuiteWidgetSupport.defaultProjectNames[0]),
+            WidgetButtonSlot(id: 3, title: "書籍",     amount: 2200, category: "消耗品費", project: TaxSuiteWidgetSupport.defaultProjectNames[2])
         ]
     )
 }
