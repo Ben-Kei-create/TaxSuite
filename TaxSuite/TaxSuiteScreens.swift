@@ -49,7 +49,7 @@ struct TaxSuiteScreenSurface<Content: View>: View {
 
     var body: some View {
         ZStack {
-            Color(white: 0.97).ignoresSafeArea()
+            Color(UIColor.systemGroupedBackground).ignoresSafeArea()
 
             VStack(spacing: 8) {
                 TaxSuiteBannerHeader()
@@ -492,7 +492,7 @@ struct DashboardView: View {
         .background(
             // タブバーとの境界が分かるように薄い影とブラーを背景に重ねる
             ZStack {
-                Color(white: 0.98).opacity(0.98)
+                Color(UIColor.secondarySystemBackground)
                 VStack {
                     Divider().opacity(0.12)
                     Spacer()
@@ -2666,65 +2666,96 @@ struct SettingsView: View {
         NavigationStack {
             TaxSuiteScreenSurface {
                 List {
+                    // MARK: - Pro (featured)
                     Section {
                         Button {
                             isTaxSuiteProEnabled.toggle()
                         } label: {
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "crown.fill")
-                                        .font(.title3)
-                                        .foregroundColor(.yellow)
-                                    Text("TaxSuite Pro")
-                                        .font(.headline)
-                                        .foregroundColor(.black)
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack(alignment: .center, spacing: 12) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .fill(
+                                                LinearGradient(
+                                                    colors: [
+                                                        Color.yellow.opacity(0.9),
+                                                        Color.orange.opacity(0.85)
+                                                    ],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                            .frame(width: 38, height: 38)
+                                        Image(systemName: "crown.fill")
+                                            .font(.system(size: 18, weight: .semibold))
+                                            .foregroundStyle(.white)
+                                    }
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("TaxSuite Pro")
+                                            .font(.title3.weight(.bold))
+                                            .foregroundColor(.primary)
+                                        Text(isTaxSuiteProEnabled ? "すべての機能を利用できます" : "もっと便利になる拡張機能")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
                                     Spacer()
-                                    Text(isTaxSuiteProEnabled ? "ON" : "OFF")
-                                        .font(.caption.bold())
-                                        .foregroundColor(isTaxSuiteProEnabled ? .green : .secondary)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 6)
-                                        .background((isTaxSuiteProEnabled ? Color.green : Color.gray).opacity(0.12))
-                                        .clipShape(Capsule())
+                                    proStatusPill(isOn: isTaxSuiteProEnabled)
                                 }
-                                VStack(alignment: .leading, spacing: 6) {
+                                VStack(alignment: .leading, spacing: 8) {
                                     proFeatureRow(icon: "infinity", text: "経費・売上の登録数が無制限")
                                     proFeatureRow(icon: "icloud.fill", text: "iCloud同期（今後対応予定）")
                                     proFeatureRow(icon: "sparkles", text: "AIによるカテゴリ自動提案")
                                 }
+                                .padding(.leading, 2)
                                 Text(isTaxSuiteProEnabled
-                                     ? "Pro機能が有効です。ご利用ありがとうございます！"
-                                     : "※ 現在はベータ提供中のため、トグルで有効化できます。")
+                                     ? "ご利用ありがとうございます。タップで一時的にOFFにできます。"
+                                     : "ベータ版では手動でON/OFFを切り替えて試せます。")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
-                            .padding(.vertical, 4)
+                            .padding(.vertical, 6)
                         }
+                        .buttonStyle(.plain)
                     }
-                    Section(header: Text("計算設定")) {
+
+                    // MARK: - 計算設定
+                    Section {
                         HStack {
+                            settingsIconTile("percent", tint: .teal)
                             Text("推定税率")
+                                .font(.body)
+                                .foregroundColor(.primary)
                             Spacer()
                             Picker("", selection: $taxRate) {
                                 Text("10%").tag(0.1)
                                 Text("20%").tag(0.2)
                                 Text("30%").tag(0.3)
                             }
-                            .tint(.black)
+                            .tint(.primary)
                         }
+                        .padding(.vertical, 2)
+                    } header: {
+                        Text("計算")
+                    } footer: {
+                        Text("売上規模によって目安の税率を選択してください。わからなければ20%のままで問題ありません。")
                     }
+
+                    // MARK: - プロジェクト
                     Section(
-                        header: Text("プロジェクト設定"),
+                        header: Text("プロジェクト"),
                         footer: Text("デフォルトの3つに加えて最大\(TaxSuiteWidgetSupport.maxProjectCount)個まで追加できます。名前は自由に変更でき、空欄は「メイン業 / 副業 / その他」に戻ります。")
                     ) {
                         ForEach(projectNameDrafts.indices, id: \.self) { index in
-                            TextField("プロジェクト\(index + 1)", text: Binding(
-                                get: { projectNameDrafts[index] },
-                                set: { projectNameDrafts[index] = $0 }
-                            ))
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .onSubmit(saveProjectNames)
+                            HStack(spacing: 12) {
+                                projectIndexBadge(index: index)
+                                TextField("プロジェクト\(index + 1)", text: Binding(
+                                    get: { projectNameDrafts[index] },
+                                    set: { projectNameDrafts[index] = $0 }
+                                ))
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .onSubmit(saveProjectNames)
+                            }
                         }
                         .onDelete { indexSet in
                             deleteProjectRows(at: indexSet)
@@ -2734,116 +2765,106 @@ struct SettingsView: View {
                             Button {
                                 addProjectRow()
                             } label: {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "plus.circle.fill")
-                                        .foregroundColor(.blue)
+                                HStack(spacing: 12) {
+                                    settingsIconTile("plus", tint: .blue)
                                     Text("プロジェクトを追加")
+                                        .font(.body.weight(.medium))
                                         .foregroundColor(.blue)
                                     Spacer()
                                     Text("\(projectNameDrafts.count) / \(TaxSuiteWidgetSupport.maxProjectCount)")
-                                        .font(.caption)
+                                        .font(.caption.monospacedDigit())
                                         .foregroundColor(.secondary)
                                 }
+                                .padding(.vertical, 2)
                             }
                         } else {
-                            HStack {
+                            HStack(spacing: 12) {
+                                settingsIconTile("checkmark", tint: .gray)
                                 Text("上限に達しました")
-                                    .font(.caption)
+                                    .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Spacer()
                                 Text("\(projectNameDrafts.count) / \(TaxSuiteWidgetSupport.maxProjectCount)")
-                                    .font(.caption)
+                                    .font(.caption.monospacedDigit())
                                     .foregroundColor(.secondary)
                             }
+                            .padding(.vertical, 2)
                         }
                     }
-                    Section(header: Text("固定費")) {
-                        NavigationLink(destination: RecurringExpensesSettingsView()) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
-                                    .foregroundColor(.blue)
-                                Text("固定費を管理")
-                                    .font(.headline)
-                                    .foregroundColor(.black)
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
-                    Section(header: Text("ショートカット")) {
+
+                    // MARK: - 入力を速く
+                    Section {
                         NavigationLink(destination: WidgetButtonSettingsView()) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "square.grid.2x2.fill")
-                                    .foregroundColor(.purple)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("ショートカットを設定")
-                                        .font(.headline)
-                                        .foregroundColor(.black)
-                                    Text("ダッシュボードとホーム画面で共通")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            .padding(.vertical, 4)
+                            settingsNavContent(
+                                icon: "square.grid.2x2.fill",
+                                tint: .purple,
+                                title: "ショートカット",
+                                subtitle: "ダッシュボードとホーム画面で共通"
+                            )
                         }
-                    }
-                    Section(header: Text("場所でリマインド")) {
+                        NavigationLink(destination: RecurringExpensesSettingsView()) {
+                            settingsNavContent(
+                                icon: "arrow.triangle.2.circlepath",
+                                tint: .blue,
+                                title: "固定費",
+                                subtitle: "毎月自動で登録される経費を管理"
+                            )
+                        }
                         NavigationLink(destination: LocationTriggersView()) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "mappin.and.ellipse")
-                                    .foregroundColor(.red)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("ジオフェンス設定")
-                                        .font(.headline)
-                                        .foregroundColor(.black)
-                                    Text("到着通知で経費をワンタップ記録")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            .padding(.vertical, 4)
+                            settingsNavContent(
+                                icon: "mappin.and.ellipse",
+                                tint: .red,
+                                title: "場所でリマインド",
+                                subtitle: "到着通知で経費をワンタップ記録"
+                            )
                         }
+                    } header: {
+                        Text("入力を速く")
                     }
+
+                    // MARK: - データ
                     Section(header: Text("データ")) {
-                        LabeledContent("書き出し形式") {
+                        HStack {
+                            settingsIconTile("doc.text", tint: .gray)
+                            Text("書き出し形式")
+                                .font(.body)
+                                .foregroundColor(.primary)
+                            Spacer()
                             Picker("書き出し形式", selection: $selectedExportFormat) {
                                 ForEach(ExportFormat.allCases) { format in
                                     Text(format.rawValue).tag(format)
                                 }
                             }
                             .labelsHidden()
-                            .tint(.black)
+                            .tint(.primary)
                         }
+                        .padding(.vertical, 2)
 
                         NavigationLink(destination: CSVPreviewView(format: selectedExportFormat)) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "doc.text.magnifyingglass")
-                                    .foregroundColor(.blue)
-                                Text("書き出し結果をプレビュー")
-                                    .font(.headline)
-                                    .foregroundColor(.black)
-                                Spacer()
-                                Text(selectedExportFormat.rawValue)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.vertical, 4)
+                            settingsNavContent(
+                                icon: "doc.text.magnifyingglass",
+                                tint: .blue,
+                                title: "書き出し結果をプレビュー",
+                                trailing: selectedExportFormat.rawValue
+                            )
                         }
 
                         Button(action: exportCSV) {
                             HStack(spacing: 12) {
-                                Image(systemName: "square.and.arrow.up.fill")
-                                    .foregroundColor(.orange)
+                                settingsIconTile("square.and.arrow.up.fill", tint: .orange)
                                 Text("CSVを書き出す")
-                                    .font(.headline)
-                                    .foregroundColor(.black)
+                                    .font(.body.weight(.medium))
+                                    .foregroundColor(.primary)
                                 Spacer()
                                 Text(selectedExportFormat.rawValue)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
-                            .padding(.vertical, 4)
+                            .padding(.vertical, 2)
                         }
                     }
+
+                    // MARK: - 連携
                     Section(header: Text("連携")) {
                         // Google アカウント認証行（@Observable で状態を自動監視）
                         GoogleSignInRow(authService: authService)
@@ -2855,123 +2876,108 @@ struct SettingsView: View {
                                     taxRate: taxRate
                                 )
                             ) {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "paperplane.circle.fill")
-                                        .foregroundColor(.indigo)
-                                    Text("Gmail 用の報告下書き")
-                                        .font(.headline)
-                                        .foregroundColor(.black)
-                                    Spacer()
-                                }
-                                .padding(.vertical, 4)
+                                settingsNavContent(
+                                    icon: "paperplane.fill",
+                                    tint: .indigo,
+                                    title: "Gmail 用の報告下書き",
+                                    subtitle: "CSVを添付した報告メールを作成"
+                                )
                             }
 
                             NavigationLink(destination: GmailReceiptInboxView()) {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "envelope.open.fill")
-                                        .foregroundColor(.orange)
-                                    Text("領収書メールを取り込む")
-                                        .font(.headline)
-                                        .foregroundColor(.black)
-                                    Spacer()
-                                }
-                                .padding(.vertical, 4)
+                                settingsNavContent(
+                                    icon: "envelope.open.fill",
+                                    tint: .orange,
+                                    title: "領収書メールを取り込む",
+                                    subtitle: "Gmailから自動で経費登録"
+                                )
                             }
                         } else {
                             HStack(spacing: 12) {
-                                Image(systemName: "lock.fill")
-                                    .foregroundColor(.gray)
+                                settingsIconTile("lock.fill", tint: .gray)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("Gmail 用の報告下書き")
-                                        .font(.headline)
-                                        .foregroundColor(.gray)
-                                    Text("ログイン後に解放")
+                                    Text("Gmail連携機能")
+                                        .font(.body.weight(.medium))
+                                        .foregroundColor(.secondary)
+                                    Text("ログイン後に解放されます")
                                         .font(.caption2)
                                         .foregroundColor(.secondary)
                                 }
                                 Spacer()
                             }
-                            .padding(.vertical, 4)
+                            .padding(.vertical, 2)
                         }
                     }
-                    Section(header: Text("学ぶ")) {
+
+                    // MARK: - ヘルプ
+                    Section(header: Text("ヘルプ")) {
                         Button {
                             showingHowTo = true
                         } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "sparkles")
-                                    .foregroundColor(.black)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("使い方を見る")
-                                        .font(.headline)
-                                        .foregroundColor(.black)
-                                    Text("かんたんな操作のおさらい")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            .padding(.vertical, 4)
+                            settingsNavContent(
+                                icon: "sparkles",
+                                tint: .pink,
+                                title: "使い方を見る",
+                                subtitle: "かんたんな操作のおさらい"
+                            )
                         }
                         NavigationLink(destination: TaxKnowledgeGlossaryView()) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "book.closed.fill")
-                                    .foregroundColor(.green)
-                                Text("税の知識ミニ辞典")
-                                    .font(.headline)
-                                    .foregroundColor(.black)
-                            }
-                            .padding(.vertical, 4)
+                            settingsNavContent(
+                                icon: "book.closed.fill",
+                                tint: .green,
+                                title: "税の知識ミニ辞典",
+                                subtitle: "用語や控除をすぐに確認"
+                            )
                         }
                     }
+
+                    // MARK: - アプリについて
                     Section(header: Text("アプリについて")) {
                         HStack(spacing: 12) {
-                            Image(systemName: "person.crop.circle.fill")
-                                .foregroundColor(.blue)
+                            settingsIconTile("person.fill", tint: .blue)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("クリエイター")
-                                    .font(.headline)
-                                    .foregroundColor(.black)
+                                    .font(.body.weight(.medium))
+                                    .foregroundColor(.primary)
                                 Text("Ben-Kei")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
                             Spacer()
                         }
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 2)
 
                         if let contactURL = URL(string: "mailto:support@taxsuite.app") {
                             Link(destination: contactURL) {
                                 HStack(spacing: 12) {
-                                    Image(systemName: "envelope.fill")
-                                        .foregroundColor(.orange)
+                                    settingsIconTile("envelope.fill", tint: .orange)
                                     Text("お問い合わせ")
-                                        .font(.headline)
-                                        .foregroundColor(.black)
+                                        .font(.body.weight(.medium))
+                                        .foregroundColor(.primary)
                                     Spacer()
                                     Image(systemName: "arrow.up.right.square")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
-                                .padding(.vertical, 4)
+                                .padding(.vertical, 2)
                             }
                         }
 
                         HStack(spacing: 12) {
-                            Image(systemName: "info.circle.fill")
-                                .foregroundColor(.gray)
+                            settingsIconTile("info.circle.fill", tint: .gray)
                             Text("バージョン")
-                                .font(.headline)
-                                .foregroundColor(.black)
+                                .font(.body.weight(.medium))
+                                .foregroundColor(.primary)
                             Spacer()
                             Text(appVersionString)
-                                .font(.caption)
+                                .font(.caption.monospacedDigit())
                                 .foregroundColor(.secondary)
-                                .monospacedDigit()
                         }
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 2)
                     }
                 }
                 .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
             }
             .navigationTitle("設定")
             .sheet(item: $exportFile) { exportFile in
@@ -3042,15 +3048,96 @@ struct SettingsView: View {
     }
 
     private func proFeatureRow(icon: String, text: String) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.caption)
-                .foregroundColor(.black.opacity(0.6))
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
                 .frame(width: 18)
             Text(text)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(.primary.opacity(0.85))
             Spacer()
+        }
+    }
+
+    /// Pro の ON/OFF をピルで表示。形＋色＋アイコンで識別できるよう配色に依存しない。
+    private func proStatusPill(isOn: Bool) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: isOn ? "checkmark" : "circle.dashed")
+                .font(.caption2.weight(.bold))
+            Text(isOn ? "ON" : "OFF")
+                .font(.caption.weight(.bold))
+        }
+        .foregroundColor(isOn ? .green : .secondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(
+            Capsule().fill(
+                (isOn ? Color.green : Color.secondary).opacity(0.12)
+            )
+        )
+        .overlay(
+            Capsule().strokeBorder(
+                (isOn ? Color.green : Color.secondary).opacity(0.25),
+                lineWidth: 0.5
+            )
+        )
+    }
+
+    /// 設定行のアイコンタイル。すべての行で共通の形状（角丸正方形）を使うことで、
+    /// 色に頼らず視覚的な整列と階層を作る。
+    private func settingsIconTile(_ name: String, tint: Color) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(tint)
+            .frame(width: 30, height: 30)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(tint.opacity(0.14))
+            )
+    }
+
+    /// NavigationLink / Button 内に置く統一された行レイアウト。
+    /// タイトル・サブタイトル・末尾要素を型の一貫した形で表示する。
+    @ViewBuilder
+    private func settingsNavContent(
+        icon: String,
+        tint: Color,
+        title: String,
+        subtitle: String? = nil,
+        trailing: String? = nil
+    ) -> some View {
+        HStack(spacing: 12) {
+            settingsIconTile(icon, tint: tint)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.body.weight(.medium))
+                    .foregroundColor(.primary)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            Spacer()
+            if let trailing {
+                Text(trailing)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    /// プロジェクト番号のバッジ。色のみでの識別ではなく、数字という別の情報軸も使う。
+    private func projectIndexBadge(index: Int) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.primary.opacity(0.07))
+                .frame(width: 26, height: 26)
+            Text("\(index + 1)")
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .foregroundColor(.secondary)
         }
     }
 
@@ -3423,14 +3510,19 @@ struct GoogleSignInRow: View {
 
     private var signedInContent: some View {
         HStack(spacing: 12) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.green)
-                .font(.system(size: 22))
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.green.opacity(0.14))
+                    .frame(width: 30, height: 30)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.green)
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(authService.userDisplayName.isEmpty ? "Google アカウント" : authService.userDisplayName)
-                    .font(.headline)
-                    .foregroundColor(.black)
+                    .font(.body.weight(.medium))
+                    .foregroundColor(.primary)
                 Text(authService.userEmail)
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -3449,7 +3541,7 @@ struct GoogleSignInRow: View {
             .background(Color.red.opacity(0.08))
             .clipShape(Capsule())
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 2)
     }
 
     // MARK: Not signed-in state
@@ -3469,22 +3561,25 @@ struct GoogleSignInRow: View {
             }
         } label: {
             HStack(spacing: 12) {
-                Group {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.blue.opacity(0.14))
+                        .frame(width: 30, height: 30)
                     if isSigningIn {
                         ProgressView()
                             .progressViewStyle(.circular)
                             .tint(.blue)
+                            .controlSize(.small)
                     } else {
-                        Image(systemName: "person.circle")
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(.blue)
-                            .font(.system(size: 22))
                     }
                 }
-                .frame(width: 22, height: 22)
 
-                Text(isSigningIn ? "認証中..." : "Google でログイン")
-                    .font(.headline)
-                    .foregroundColor(isSigningIn ? .secondary : .black)
+                Text(isSigningIn ? "認証中…" : "Google でログイン")
+                    .font(.body.weight(.medium))
+                    .foregroundColor(isSigningIn ? .secondary : .primary)
 
                 Spacer()
 
@@ -3494,7 +3589,7 @@ struct GoogleSignInRow: View {
                         .foregroundColor(.secondary)
                 }
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, 2)
         }
         .buttonStyle(.plain)
         .disabled(isSigningIn)
