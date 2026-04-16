@@ -3389,7 +3389,7 @@ struct RecurringExpensesSettingsView: View {
                                                 .padding(.vertical, 4)
                                                 .background(Color.gray.opacity(0.1))
                                                 .cornerRadius(6)
-                                            Text("毎月\(recurringExpense.dayOfMonth)日")
+                                            Text(recurringExpense.frequencyDisplayLabel)
                                                 .font(.caption2)
                                                 .foregroundColor(.blue)
                                                 .padding(.horizontal, 8)
@@ -3455,6 +3455,8 @@ struct RecurringExpenseEditView: View {
     @State private var dayOfMonth: Int = 1
     @State private var note: String = ""
     @State private var saveError: String?
+    @State private var frequency: RecurringFrequency = .monthly
+    @State private var dayOfWeek: Int = 2  // 1=日, 2=月, …, 7=土
 
     private var projects: [String] {
         TaxSuiteWidgetStore.projectNameOptions(including: recurringExpense.map { [$0.project] } ?? [project])
@@ -3482,13 +3484,39 @@ struct RecurringExpenseEditView: View {
                         }
                         .pickerStyle(.segmented)
                     }
-                    Section("引き落とし日") {
-                        Stepper(value: $dayOfMonth, in: 1...31) {
-                            Text("毎月 \(dayOfMonth) 日")
+                    Section("繰り返し頻度") {
+                        Picker("頻度", selection: $frequency) {
+                            ForEach(RecurringFrequency.allCases, id: \.self) { f in
+                                Text(f.label).tag(f)
+                            }
                         }
-                        Text("存在しない日付はその月の末日に自動調整します。")
-                            .font(.caption)
-                            .foregroundColor(.gray)
+                        .pickerStyle(.menu)
+                    }
+
+                    if frequency == .weekly || frequency == .biweekly {
+                        Section("実行曜日") {
+                            Picker("曜日", selection: $dayOfWeek) {
+                                Text("月曜日").tag(2)
+                                Text("火曜日").tag(3)
+                                Text("水曜日").tag(4)
+                                Text("木曜日").tag(5)
+                                Text("金曜日").tag(6)
+                                Text("土曜日").tag(7)
+                                Text("日曜日").tag(1)
+                            }
+                            .pickerStyle(.menu)
+                        }
+                    }
+
+                    if frequency == .monthly || frequency == .quarterly {
+                        Section(frequency == .quarterly ? "各四半期の引き落とし日" : "引き落とし日") {
+                            Stepper(value: $dayOfMonth, in: 1...31) {
+                                Text(frequency == .quarterly ? "各四半期 \(dayOfMonth) 日" : "毎月 \(dayOfMonth) 日")
+                            }
+                            Text("存在しない日付はその月の末日に自動調整します。")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
                     }
                     Section("コメント") {
                         VStack(alignment: .leading, spacing: 12) {
@@ -3542,6 +3570,8 @@ struct RecurringExpenseEditView: View {
                 project = recurringExpense.project
                 dayOfMonth = recurringExpense.dayOfMonth
                 note = recurringExpense.note
+                frequency = RecurringFrequency(rawValue: recurringExpense.frequency) ?? .monthly
+                dayOfWeek = recurringExpense.dayOfWeek
             }
         }
     }
@@ -3555,6 +3585,8 @@ struct RecurringExpenseEditView: View {
             recurringExpense.project = project
             recurringExpense.dayOfMonth = dayOfMonth
             recurringExpense.note = note
+            recurringExpense.frequency = frequency.rawValue
+            recurringExpense.dayOfWeek = dayOfWeek
         } else {
             modelContext.insert(
                 RecurringExpense(
@@ -3562,7 +3594,9 @@ struct RecurringExpenseEditView: View {
                     amount: amount,
                     project: project,
                     dayOfMonth: dayOfMonth,
-                    note: note
+                    note: note,
+                    frequency: frequency.rawValue,
+                    dayOfWeek: dayOfWeek
                 )
             )
         }

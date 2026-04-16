@@ -96,8 +96,6 @@ struct ContentView: View {
 
         let calendar = Calendar.current
         let now = Date()
-        let currentMonth = calendar.component(.month, from: now)
-        let currentYear = calendar.component(.year, from: now)
         var hasChanges = false
 
         for recurring in recurringExpenses {
@@ -107,16 +105,15 @@ struct ContentView: View {
                     expense.recurringExpenseID == recurringIDString
                 }
             )
-
             guard let createdExpenses = try? modelContext.fetch(expenseDescriptor) else { continue }
 
-            let alreadyAddedThisMonth = createdExpenses.contains { expense in
-                let expenseMonth = calendar.component(.month, from: expense.timestamp)
-                let expenseYear = calendar.component(.year, from: expense.timestamp)
-                return expenseMonth == currentMonth && expenseYear == currentYear
-            }
-
-            guard !alreadyAddedThisMonth else { continue }
+            let alreadyAdded = alreadyAddedInCurrentPeriod(
+                recurring: recurring,
+                createdExpenses: createdExpenses,
+                now: now,
+                calendar: calendar
+            )
+            guard !alreadyAdded else { continue }
 
             let autoExpense = ExpenseItem(
                 timestamp: recurring.scheduledDate(in: now, calendar: calendar),
@@ -134,6 +131,54 @@ struct ContentView: View {
 
         if hasChanges {
             try? modelContext.save()
+        }
+    }
+
+    private func alreadyAddedInCurrentPeriod(
+        recurring: RecurringExpense,
+        createdExpenses: [ExpenseItem],
+        now: Date,
+        calendar: Calendar
+    ) -> Bool {
+        switch RecurringFrequency(rawValue: recurring.frequency) ?? .monthly {
+
+        case .monthly:
+            let m = calendar.component(.month, from: now)
+            let y = calendar.component(.year, from: now)
+            return createdExpenses.contains {
+                calendar.component(.month, from: $0.timestamp) == m &&
+                calendar.component(.year, from: $0.timestamp) == y
+            }
+
+        case .quarterly:
+            // 1-3月 / 4-6月 / 7-9月 / 10-12月 の各四半期内に1回
+            let m = calendar.component(.month, from: now)
+            let y = calendar.component(.year, from: now)
+            let currentQuarter = (m - 1) / 3
+            return createdExpenses.contains {
+                let em = calendar.component(.month, from: $0.timestamp)
+                let ey = calendar.component(.year, from: $0.timestamp)
+                return ey == y && (em - 1) / 3 == currentQuarter
+            }
+
+        case .weekly:
+            let week = calendar.component(.weekOfYear, from: now)
+            let y = calendar.component(.yearForWeekOfYear, from: now)
+            return createdExpenses.contains {
+                calendar.component(.weekOfYear, from: $0.timestamp) == week &&
+                calendar.component(.yearForWeekOfYear, from: $0.timestamp) == y
+            }
+
+        case .biweekly:
+            // 年頭からの週番号を 2 で割った値が同じならスキップ
+            let week = calendar.component(.weekOfYear, from: now)
+            let y = calendar.component(.yearForWeekOfYear, from: now)
+            let biweekPeriod = (week - 1) / 2
+            return createdExpenses.contains {
+                let ew = calendar.component(.weekOfYear, from: $0.timestamp)
+                let ey = calendar.component(.yearForWeekOfYear, from: $0.timestamp)
+                return ey == y && (ew - 1) / 2 == biweekPeriod
+            }
         }
     }
 
