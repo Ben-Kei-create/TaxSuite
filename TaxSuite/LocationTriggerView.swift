@@ -335,6 +335,12 @@ struct LocationTriggerEditView: View {
                     // 基本情報
                     Section(header: Text("リマインダー設定")) {
                         TextField("場所の名前（例: いつものスタバ）", text: $name)
+                            // 必須項目。空なら行背景をほんのり赤く（保存ボタン無効はそのまま）。
+                            .listRowBackground(
+                                name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                    ? Color.red.opacity(0.08)
+                                    : Color(UIColor.secondarySystemGroupedBackground)
+                            )
 
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {

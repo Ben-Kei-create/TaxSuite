@@ -1093,9 +1093,11 @@ struct IncomeEditView: View {
                 Form {
                     Section(header: Text("案件名")) {
                         TextField("例：A社Web制作", text: $title)
+                            .listRowBackground(requiredFieldBackground(isEmpty: title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
                     }
                     Section(header: Text("金額")) {
                         WalletChargeInputView(amountText: $amountText)
+                            .listRowBackground(requiredFieldBackground(isEmpty: amountText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
                     }
                     Section(header: Text("日付")) {
                         DatePicker(
@@ -1148,6 +1150,13 @@ struct IncomeEditView: View {
         } else {
             project = TaxSuiteWidgetStore.sanitizeProjectName(project, fallbackIndex: 0)
         }
+    }
+
+    /// 必須項目（案件名・金額）が空のときだけ行背景をほんのり赤くする。
+    private func requiredFieldBackground(isEmpty: Bool) -> Color {
+        isEmpty
+            ? Color.red.opacity(0.08)
+            : Color(UIColor.secondarySystemGroupedBackground)
     }
 
     private func saveIncome() {
@@ -1259,11 +1268,15 @@ struct ExpenseEditView: View {
         NavigationStack {
             TaxSuiteScreenSurface {
                 Form {
+                    // 必須項目（タイトル / 金額）が未入力のセルは、行の背景をほんのり赤く染めて
+                    // 「ここが足りない」と視覚で伝える。保存ボタン側の disabled はそのまま。
                     Section(header: Text("項目名"), footer: suggestionFooter) {
                         TextField("例：タクシー代", text: $title)
+                            .listRowBackground(requiredFieldBackground(isEmpty: title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
                     }
                     Section(header: Text("金額")) {
                         WalletChargeInputView(amountText: $amountText)
+                            .listRowBackground(requiredFieldBackground(isEmpty: amountText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
                     }
                     Section(header: Text("日付")) {
                         DatePicker(
@@ -1355,6 +1368,13 @@ struct ExpenseEditView: View {
                 applySuggestion(for: newTitle)
             }
         }
+    }
+
+    /// 必須項目の行背景色を返す。空なら薄赤、そうでなければフォームの既定背景。
+    private func requiredFieldBackground(isEmpty: Bool) -> Color {
+        isEmpty
+            ? Color.red.opacity(0.08)
+            : Color(UIColor.secondarySystemGroupedBackground)
     }
 
     private func configureOnAppear() {
