@@ -836,7 +836,8 @@ struct TodayExpenseRow: View {
     @State private var dragOffset: CGFloat = 0
     /// 長押しが発火する前の「押されている」状態。指が触れているあいだ true になり、
     /// カード全体に軽い縮小と色のオーバーレイをかけて押下感を出す。
-    @State private var isPressing: Bool = false
+    /// @GestureState を使うことでスクロール開始時に自動でリセットされる。
+    @GestureState private var isPressing: Bool = false
 
     // 削除ボタン領域の幅。iOS 標準のスワイプアクションのコンパクトさに合わせる。
     private let actionWidth: CGFloat = 74
@@ -954,20 +955,22 @@ struct TodayExpenseRow: View {
             .gesture(swipeGesture)
             .contentShape(Rectangle())
             .onTapGesture(perform: onTap)
-            .onLongPressGesture(minimumDuration: 0.45) {
-                let generator = UIImpactFeedbackGenerator(style: .medium)
-                generator.impactOccurred()
-                isPressing = false
-                onLongPress()
-            } onPressingChanged: { pressing in
-                // 指が触れた瞬間から押下感（縮小＋オーバーレイ）を出す。
-                // 触れた瞬間のみ軽い触覚フィードバックを付ける（選択モード遷移の
-                // medium より弱い .soft で「反応した」ことだけ伝える）。
+            // simultaneousGesture を使うことで ScrollView のスクロールを妨げない。
+            // @GestureState はスクロール開始でジェスチャが失敗した瞬間に自動で false へ戻る。
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.45)
+                    .updating($isPressing) { _, state, _ in state = true }
+                    .onEnded { _ in
+                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                        generator.impactOccurred()
+                        onLongPress()
+                    }
+            )
+            .onChange(of: isPressing) { _, pressing in
                 if pressing {
                     let tap = UIImpactFeedbackGenerator(style: .soft)
                     tap.impactOccurred()
                 }
-                isPressing = pressing
             }
 
             // 削除ボタン（前面）— カードのタップが優先されないよう最後に重ねる
