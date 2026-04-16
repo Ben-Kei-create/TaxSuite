@@ -271,6 +271,39 @@ actor GmailAPIService {
         }
     }
 
+    /// メールを直接送信する（下書き保存ではなく即時送信）。
+    /// 必要スコープ: `https://www.googleapis.com/auth/gmail.send`
+    func sendEmail(to: String, subject: String, body: String, csvURL: URL? = nil) async throws {
+        let token = try await GoogleAuthService.shared.freshAccessToken()
+
+        let mimeString: String
+        if let csvURL, let csvData = try? Data(contentsOf: csvURL) {
+            mimeString = buildMultipartMime(
+                to: to, subject: subject, body: body,
+                csvData: csvData, csvFileName: csvURL.lastPathComponent
+            )
+        } else {
+            mimeString = buildPlainMime(to: to, subject: subject, body: body)
+        }
+
+        guard let mimeData = mimeString.data(using: .utf8) else {
+            throw GmailAPIError.invalidRequest
+        }
+        let encoded = mimeData.base64URLEncoded()
+
+        guard let url = URL(string: "\(baseURL)/messages/send") else {
+            throw GmailAPIError.invalidRequest
+        }
+        var request = authorizedRequest(url: url, token: token)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let payload: [String: Any] = ["raw": encoded]
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+
+        let (data, response) = try await session.data(for: request)
+        try validateHTTPResponse(response, data: data)
+    }
+
     // MARK: - MIME builders
 
     /// 添付なしのシンプルな text/plain メッセージ

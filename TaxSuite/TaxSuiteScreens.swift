@@ -102,6 +102,7 @@ struct DashboardView: View {
     // 現在スワイプで削除ボタンが露出している行。複数行が同時に開かないよう 1 行だけに制限する。
     @State private var swipeRevealedExpenseID: PersistentIdentifier? = nil
     @State private var showingBulkDeleteConfirm = false
+    @State private var saveError: String?
 
     var currentMonthRevenue: Double {
         let calendar = Calendar.current
@@ -288,6 +289,11 @@ struct DashboardView: View {
             .onChange(of: widgetSnapshotFingerprint) { _, _ in
                 syncWidgetSnapshot()
             }
+            .alert("保存エラー", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+                Button("OK") { saveError = nil }
+            } message: {
+                Text(saveError ?? "")
+            }
         }
     }
 
@@ -342,7 +348,7 @@ struct DashboardView: View {
     private func deleteExpense(_ expense: ExpenseItem) {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             modelContext.delete(expense)
-            try? modelContext.save()
+            do { try modelContext.save() } catch { saveError = error.localizedDescription }
             swipeRevealedExpenseID = nil
         }
         let generator = UINotificationFeedbackGenerator()
@@ -355,7 +361,7 @@ struct DashboardView: View {
             for expense in todayExpenses where idsToDelete.contains(expense.persistentModelID) {
                 modelContext.delete(expense)
             }
-            try? modelContext.save()
+            do { try modelContext.save() } catch { saveError = error.localizedDescription }
             exitSelectionMode()
         }
         let generator = UINotificationFeedbackGenerator()
@@ -583,7 +589,7 @@ struct DashboardView: View {
                     note: slot.note
                 )
             )
-            try? modelContext.save()
+            do { try modelContext.save() } catch { saveError = error.localizedDescription }
             showingShortcutBar = false
         }
 
@@ -2348,8 +2354,9 @@ struct ReportDraftComposerView: View {
     @State private var sharePayload: SharePayload?
     @State private var exportErrorMessage: String?
 
-    // Gmail 下書き作成の状態
+    // Gmail 送信・下書き作成の状態
     @State private var gmailDraftStatus: GmailDraftStatus = .idle
+    @State private var gmailSendStatus: GmailDraftStatus = .idle
 
     enum GmailDraftStatus: Equatable {
         case idle
@@ -2471,61 +2478,84 @@ struct ReportDraftComposerView: View {
                     .padding(.vertical, 4)
                 }
 
-                // Gmail 直接送信セクション
+                // Gmail 送信セクション
                 Section {
+                    // 直接送信ボタン（宛先が必須）
+                    Button(action: { Task { await sendGmailDirectly() } }) {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                if gmailSendStatus == .creating {
+                                    ProgressView().progressViewStyle(.circular).scaleEffect(0.85)
+                                } else if gmailSendStatus == .success {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green).font(.system(size: 20))
+                                } else {
+                                    Image(systemName: "paperplane.fill")
+                                        .foregroundColor(.white).font(.system(size: 16))
+                                }
+                            }
+                            .frame(width: 24, height: 24)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(gmailSendStatus == .success ? "送信しました！" : "Gmail で直接送信")
+                                    .font(.headline).foregroundColor(.white)
+                                Text(advisorEmail.isEmpty ? "宛先メールアドレスを入力してください" : "送信先: \(advisorEmail)")
+                                    .font(.caption).foregroundColor(.white.opacity(0.8))
+                            }
+                            Spacer()
+                        }
+                        .padding(.vertical, 10).padding(.horizontal, 4)
+                    }
+                    .listRowBackground(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(gmailSendStatus == .success ? Color.green : Color.blue)
+                            .padding(.vertical, 2)
+                    )
+                    .disabled(advisorEmail.isEmpty || gmailSendStatus == .creating)
+
+                    if case .failure(let msg) = gmailSendStatus {
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.orange)
+                            Text(msg).font(.caption).foregroundColor(.orange)
+                        }
+                        .padding(.vertical, 4)
+                    }
+
+                    // 下書き保存ボタン（確認してから送りたい場合）
                     Button(action: { Task { await createGmailDraft() } }) {
                         HStack(spacing: 12) {
                             ZStack {
                                 if gmailDraftStatus == .creating {
-                                    ProgressView()
-                                        .progressViewStyle(.circular)
-                                        .scaleEffect(0.85)
+                                    ProgressView().progressViewStyle(.circular).scaleEffect(0.85)
                                 } else if gmailDraftStatus == .success {
                                     Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.green)
-                                        .font(.system(size: 20))
+                                        .foregroundColor(.green).font(.system(size: 20))
                                 } else {
                                     Image(systemName: "tray.and.arrow.up.fill")
-                                        .foregroundColor(.white)
-                                        .font(.system(size: 16))
+                                        .foregroundColor(.secondary).font(.system(size: 16))
                                 }
                             }
                             .frame(width: 24, height: 24)
-
                             VStack(alignment: .leading, spacing: 3) {
-                                Text(gmailDraftStatus == .success ? "Gmail に下書きを保存しました" : "Gmail に下書きを作成")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                Text(gmailDraftStatus == .success
-                                     ? "Gmail アプリの「下書き」から確認できます"
-                                     : advisorEmail.isEmpty ? "宛先メールアドレスを入力するとToに自動入力" : "宛先: \(advisorEmail)")
-                                    .font(.caption)
-                                    .foregroundColor(.white.opacity(0.8))
+                                Text(gmailDraftStatus == .success ? "下書きを保存しました" : "下書きとして保存")
+                                    .font(.subheadline).foregroundColor(.primary)
+                                Text("Gmail アプリの「下書き」から確認して送信")
+                                    .font(.caption).foregroundColor(.secondary)
                             }
                             Spacer()
                         }
-                        .padding(.vertical, 10)
-                        .padding(.horizontal, 4)
+                        .padding(.vertical, 6).padding(.horizontal, 4)
                     }
-                    .listRowBackground(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(gmailDraftStatus == .success ? Color.green : Color.primary)
-                            .padding(.vertical, 2)
-                    )
                     .disabled(gmailDraftStatus == .creating)
 
                     if case .failure(let msg) = gmailDraftStatus {
                         HStack(spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                            Text(msg)
-                                .font(.caption)
-                                .foregroundColor(.orange)
+                            Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.orange)
+                            Text(msg).font(.caption).foregroundColor(.orange)
                         }
                         .padding(.vertical, 4)
                     }
                 } footer: {
-                    Text("Gmail アカウントにログインしていると、ワンタップで下書きが作成されます。")
+                    Text("Gmail にログイン済みの場合のみ利用できます。直接送信は宛先メールアドレスが必須です。")
                         .font(.caption2)
                 }
 
@@ -2616,6 +2646,48 @@ struct ReportDraftComposerView: View {
 
         } catch {
             gmailDraftStatus = .failure(error.localizedDescription)
+        }
+    }
+
+    // MARK: - Gmail 直接送信
+
+    @MainActor
+    private func sendGmailDirectly() async {
+        guard GoogleAuthService.shared.isSignedIn else {
+            gmailSendStatus = .failure("Googleアカウントにログインしてください（設定 → 連携）")
+            return
+        }
+        guard !advisorEmail.isEmpty else { return }
+
+        gmailSendStatus = .creating
+
+        do {
+            let pkg = try ReportDraftBuilder.makeDraft(
+                expenses: expenses,
+                incomes: incomes,
+                format: selectedFormat,
+                reportType: reportType,
+                advisorName: advisorName,
+                senderName: senderName,
+                businessName: businessName,
+                targetMonth: targetMonth,
+                note: note,
+                taxRate: taxRate
+            )
+
+            try await GmailAPIService.shared.sendEmail(
+                to: advisorEmail,
+                subject: pkg.subject,
+                body: pkg.body,
+                csvURL: pkg.attachments.first
+            )
+
+            withAnimation(.spring(response: 0.4)) { gmailSendStatus = .success }
+            try? await Task.sleep(for: .seconds(3))
+            withAnimation { gmailSendStatus = .idle }
+
+        } catch {
+            gmailSendStatus = .failure(error.localizedDescription)
         }
     }
 
@@ -3279,6 +3351,7 @@ struct RecurringExpensesSettingsView: View {
     @Query(sort: \RecurringExpense.dayOfMonth) private var recurringExpenses: [RecurringExpense]
     @State private var showingAddSheet = false
     @State private var editingRecurringExpense: RecurringExpense?
+    @State private var deleteError: String?
 
     var body: some View {
         TaxSuiteScreenSurface {
@@ -3356,13 +3429,18 @@ struct RecurringExpensesSettingsView: View {
         .sheet(item: $editingRecurringExpense) { recurringExpense in
             RecurringExpenseEditView(recurringExpense: recurringExpense)
         }
+        .alert("削除エラー", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
+            Button("OK") { deleteError = nil }
+        } message: {
+            Text(deleteError ?? "")
+        }
     }
 
     private func deleteRecurringExpenses(at offsets: IndexSet) {
         for index in offsets {
             modelContext.delete(recurringExpenses[index])
         }
-        try? modelContext.save()
+        do { try modelContext.save() } catch { deleteError = error.localizedDescription }
     }
 }
 
@@ -3376,6 +3454,7 @@ struct RecurringExpenseEditView: View {
     @State private var project: String = TaxSuiteWidgetStore.fallbackProjectName()
     @State private var dayOfMonth: Int = 1
     @State private var note: String = ""
+    @State private var saveError: String?
 
     private var projects: [String] {
         TaxSuiteWidgetStore.projectNameOptions(including: recurringExpense.map { [$0.project] } ?? [project])
@@ -3448,6 +3527,11 @@ struct RecurringExpenseEditView: View {
                         .disabled(title.isEmpty || amountText.isEmpty)
                 }
             }
+            .alert("保存エラー", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+                Button("OK") { saveError = nil }
+            } message: {
+                Text(saveError ?? "")
+            }
             .onAppear {
                 guard let recurringExpense else {
                     project = TaxSuiteWidgetStore.fallbackProjectName()
@@ -3483,8 +3567,12 @@ struct RecurringExpenseEditView: View {
             )
         }
 
-        try? modelContext.save()
-        dismiss()
+        do {
+            try modelContext.save()
+            dismiss()
+        } catch {
+            saveError = error.localizedDescription
+        }
     }
 }
 
@@ -3615,6 +3703,7 @@ struct GmailReceiptInboxView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showingError = false
+    @State private var saveError: String?
 
     var body: some View {
         TaxSuiteScreenSurface {
@@ -3644,6 +3733,11 @@ struct GmailReceiptInboxView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "不明なエラー")
+        }
+        .alert("保存エラー", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+            Button("OK") { saveError = nil }
+        } message: {
+            Text(saveError ?? "")
         }
         .task { await loadMessages() }
     }
@@ -3730,7 +3824,7 @@ struct GmailReceiptInboxView: View {
                 note: "Gmail から取り込み"
             )
         )
-        try? modelContext.save()
+        do { try modelContext.save() } catch { saveError = error.localizedDescription }
     }
 }
 
@@ -3811,6 +3905,7 @@ struct ReceiptImportView: View {
     @State private var pendingReceipts: [ParsedReceipt] = []
     /// キューの先頭を確認中かどうか
     @State private var showingReview = false
+    @State private var saveError: String?
 
     private let categoryOptions = ExpenseAutofillPredictor.defaultCategories
     private var projectOptions: [String] {
@@ -3966,6 +4061,11 @@ struct ReceiptImportView: View {
                     )
                 }
             }
+            .alert("保存エラー", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+                Button("OK") { saveError = nil }
+            } message: {
+                Text(saveError ?? "")
+            }
         }
     }
 
@@ -3999,8 +4099,12 @@ struct ReceiptImportView: View {
                 )
             )
         }
-        try? modelContext.save()
-        dismiss()
+        do {
+            try modelContext.save()
+            dismiss()
+        } catch {
+            saveError = error.localizedDescription
+        }
     }
 }
 

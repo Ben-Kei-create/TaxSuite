@@ -289,7 +289,7 @@ struct LocationTriggerEditView: View {
                                 .padding(.horizontal, 4)
                             }
 
-                            // 地図
+                            // 地図（ドラッグするとリアルタイムでピンが追従）
                             Map(position: $cameraPosition) {
                                 Annotation(name.isEmpty ? "📍" : name, coordinate: pinCoordinate) {
                                     ZStack {
@@ -306,28 +306,22 @@ struct LocationTriggerEditView: View {
                             }
                             .mapStyle(.standard)
                             .frame(height: 200)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .onTapGesture(coordinateSpace: .local) { _ in
-                                // Map内タップでピン移動（MapReader代替：カメラ中心を使用）
+                            .onMapCameraChange(frequency: .continuous) { context in
+                                pinCoordinate = context.camera.centerCoordinate
                             }
+                            .overlay(alignment: .center) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(.primary)
+                                    .shadow(color: .white.opacity(0.8), radius: 2)
+                                    .allowsHitTesting(false)
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                            Text("地図をドラッグして中心にピンを合わせ、「中心に設定」を押してください")
+                            Text("地図をドラッグしてピンを移動できます")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
-
-                            Button {
-                                setToCameraCenter()
-                            } label: {
-                                Label("現在の地図中心を場所に設定", systemImage: "scope")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundColor(.primary)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 8)
-                                    .background(Color.black.opacity(0.07))
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            }
-                            .buttonStyle(.plain)
                         }
                         .padding(.vertical, 4)
                     }
@@ -447,13 +441,6 @@ struct LocationTriggerEditView: View {
                     center: loc.coordinate, latitudinalMeters: 600, longitudinalMeters: 600
                 ))
             }
-        }
-    }
-
-    private func setToCameraCenter() {
-        // カメラポジションから座標を抽出
-        if let region = cameraPosition.region {
-            pinCoordinate = region.center
         }
     }
 
