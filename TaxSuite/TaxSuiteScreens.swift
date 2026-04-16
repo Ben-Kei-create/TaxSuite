@@ -258,13 +258,6 @@ struct DashboardView: View {
                             toggleSelectAllToday()
                         }
                     }
-                } else {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Text("TaxSuite v1.0")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .foregroundColor(.secondary)
-                    }
                 }
             }
             // タブバー（ホーム/カレンダー/分析/設定）は + ボタン押下時でも常に表示しておく。
