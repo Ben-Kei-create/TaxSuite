@@ -40,44 +40,9 @@ struct TaxSuiteProvider: TimelineProvider {
 
 struct TaxSuiteWidgetView: View {
     var entry: TaxSuiteEntry
-    @Environment(\.widgetFamily) var family
 
     var body: some View {
-        switch family {
-        case .systemSmall:  smallView
-        case .systemMedium: mediumView
-        default:            mediumView
-        }
-    }
-
-    // MARK: Small — 全体タップでアプリを開く
-
-    var smallView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            headerRow
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("推定手取り")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Text(currency(entry.snapshot.takeHome))
-                    .font(.system(size: 26, weight: .bold, design: .rounded).monospacedDigit())
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                    .foregroundStyle(.primary)
-            }
-
-            progressBar
-
-            HStack(spacing: 6) {
-                summaryPill(icon: "sun.max.fill", value: currency(entry.snapshot.todayExpensesTotal))
-                summaryPill(icon: "clock.fill",   value: entry.snapshot.recentExpenseTitle ?? "未記録")
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .widgetURL(URL(string: "taxsuite://dashboard"))
-        .containerBackground(for: .widget) { widgetBackground }
+        mediumView
     }
 
     // MARK: Medium — 左パネルタップでアプリ、右ボタンで即時記録
@@ -305,22 +270,6 @@ struct TaxSuiteWidgetView: View {
         }
     }
 
-    private func summaryPill(icon: String, value: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.system(size: 12, weight: .semibold, design: .rounded).monospacedDigit())
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
-        .background(Color.white.opacity(0.65))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
 
     private var takeHomeProgress: Double {
         guard entry.snapshot.currentMonthRevenue > 0 else { return 0.08 }
@@ -348,7 +297,7 @@ struct TaxSuiteWidget: Widget {
         }
         .configurationDisplayName("TaxSuite")
         .description("推定手取りの確認と、よく使う経費の即時追加")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemMedium])
     }
 }
 
@@ -367,12 +316,6 @@ private extension TaxSuiteWidgetSnapshot {
         todayExpenseCount: 3,
         recentExpenseTitle: "カフェ"
     )
-}
-
-#Preview("Small", as: .systemSmall) {
-    TaxSuiteWidget()
-} timeline: {
-    TaxSuiteEntry(date: .now, snapshot: .preview, buttonSlots: WidgetButtonSlot.defaultSlots)
 }
 
 #Preview("Medium", as: .systemMedium) {
