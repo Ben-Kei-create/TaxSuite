@@ -855,12 +855,25 @@ struct TodayExpenseRow: View {
 
                 HStack {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(expense.title).font(.subheadline).bold().foregroundColor(.black)
-                        if !expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Text(expense.note)
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
+                        // タイトルの右側の空きスペースに、コメントを薄文字 1 行で
+                        // プレビュー表示する（溢れたら末尾を "…" で省略）。
+                        // 「何となく雰囲気が分かる」くらいの軽い情報密度を狙い、
+                        // タイトルには layoutPriority を持たせて常に優先表示。
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(expense.title)
+                                .font(.subheadline)
+                                .bold()
+                                .foregroundColor(.black)
                                 .lineLimit(1)
+                                .layoutPriority(1)
+                            if !expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Text(expense.note)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary.opacity(0.85))
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .layoutPriority(0)
+                            }
                         }
                         HStack(spacing: 6) {
                             // ジオフェンス由来なら「自動記録」を示すピンを先頭に。
@@ -1525,7 +1538,7 @@ struct CalendarHistoryView: View {
                                     Button(action: { editingExpense = expense }) {
                                         HStack {
                                             VStack(alignment: .leading, spacing: 3) {
-                                                HStack(spacing: 5) {
+                                                HStack(alignment: .firstTextBaseline, spacing: 6) {
                                                     // ジオフェンス由来なら設定と同じピンで「自動記録」を示す
                                                     if expense.locationTriggerName != nil {
                                                         Image(systemName: "mappin.circle.fill")
@@ -1533,12 +1546,22 @@ struct CalendarHistoryView: View {
                                                             .foregroundColor(Color(red: 0.22, green: 0.55, blue: 0.30))
                                                             .accessibilityLabel("自動記録")
                                                     }
-                                                    Text(expense.title).font(.subheadline.weight(.semibold)).foregroundColor(.black)
+                                                    Text(expense.title)
+                                                        .font(.subheadline.weight(.semibold))
+                                                        .foregroundColor(.black)
+                                                        .lineLimit(1)
+                                                        .layoutPriority(1)
+                                                    // タイトル右の空きスペースをコメントで埋める（1 行・末尾 "…" 省略）
+                                                    if !expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                                        Text(expense.note)
+                                                            .font(.caption2)
+                                                            .foregroundColor(.secondary.opacity(0.85))
+                                                            .lineLimit(1)
+                                                            .truncationMode(.tail)
+                                                            .layoutPriority(0)
+                                                    }
                                                 }
                                                 Text(expense.project).font(.caption2).foregroundColor(.gray)
-                                                if !expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                                    Text(expense.note).font(.caption2).foregroundColor(.secondary).lineLimit(1)
-                                                }
                                             }
                                             Spacer()
                                             Text("¥\(Int(expense.effectiveAmount).formatted())")
