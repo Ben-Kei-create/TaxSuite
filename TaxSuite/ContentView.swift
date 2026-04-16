@@ -41,7 +41,8 @@ struct ContentView: View {
                     initialTitle: pending.triggerName,
                     initialAmount: pending.amount > 0 ? String(Int(pending.amount)) : "",
                     initialCategory: pending.category,
-                    initialProject: pending.project
+                    initialProject: pending.project,
+                    initialLocationTriggerName: pending.triggerName
                 )
             }
         }

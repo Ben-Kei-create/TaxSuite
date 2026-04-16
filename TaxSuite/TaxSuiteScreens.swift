@@ -870,6 +870,14 @@ struct TodayExpenseRow: View {
                                 .lineLimit(1)
                         }
                         HStack(spacing: 6) {
+                            // ジオフェンス由来なら「自動記録」を示すピンを先頭に。
+                            // 設定のトリガー一覧と同じ `mappin.circle.fill` を使って視覚的に揃える。
+                            if expense.locationTriggerName != nil {
+                                Image(systemName: "mappin.circle.fill")
+                                    .font(.caption2)
+                                    .foregroundColor(Color(red: 0.22, green: 0.55, blue: 0.30))
+                                    .accessibilityLabel("自動記録")
+                            }
                             Text(expense.project)
                                 .font(.caption2)
                                 .foregroundColor(.gray)
@@ -906,7 +914,10 @@ struct TodayExpenseRow: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white)
+            // ジオフェンス由来は薄緑背景でカレンダーのヒートマップと同じ世界観に寄せる
+            .background(expense.locationTriggerName != nil
+                        ? Color(red: 0.89, green: 0.96, blue: 0.90)
+                        : Color.white)
             .cornerRadius(15)
             .shadow(color: .black.opacity(0.02), radius: 3, x: 0, y: 2)
             .offset(x: effectiveOffset)
@@ -1142,6 +1153,8 @@ struct ExpenseEditView: View {
     var initialCategory: String = ""
     var initialProject: String = ""
     var initialDate: Date = Date()
+    /// ジオフェンス通知から開かれた場合にトリガー名を受け取り、保存時に ExpenseItem へ付与する。
+    var initialLocationTriggerName: String? = nil
 
     @State private var title: String = ""
     @State private var amountText: String = ""
@@ -1363,7 +1376,8 @@ struct ExpenseEditView: View {
                     category: category,
                     project: project,
                     businessRatio: businessRatio,
-                    note: note
+                    note: note,
+                    locationTriggerName: initialLocationTriggerName
                 )
             )
         }
@@ -1518,7 +1532,16 @@ struct CalendarHistoryView: View {
                                     Button(action: { editingExpense = expense }) {
                                         HStack {
                                             VStack(alignment: .leading, spacing: 3) {
-                                                Text(expense.title).font(.subheadline.weight(.semibold)).foregroundColor(.black)
+                                                HStack(spacing: 5) {
+                                                    // ジオフェンス由来なら設定と同じピンで「自動記録」を示す
+                                                    if expense.locationTriggerName != nil {
+                                                        Image(systemName: "mappin.circle.fill")
+                                                            .font(.caption2)
+                                                            .foregroundColor(Color(red: 0.22, green: 0.55, blue: 0.30))
+                                                            .accessibilityLabel("自動記録")
+                                                    }
+                                                    Text(expense.title).font(.subheadline.weight(.semibold)).foregroundColor(.black)
+                                                }
                                                 Text(expense.project).font(.caption2).foregroundColor(.gray)
                                                 if !expense.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                                     Text(expense.note).font(.caption2).foregroundColor(.secondary).lineLimit(1)
@@ -1531,6 +1554,12 @@ struct CalendarHistoryView: View {
                                         }
                                         .padding(.vertical, 2)
                                     }
+                                    // ジオフェンス由来はリスト行全体を薄緑にしてヒートマップと揃える
+                                    .listRowBackground(
+                                        expense.locationTriggerName != nil
+                                            ? Color(red: 0.89, green: 0.96, blue: 0.90)
+                                            : Color(UIColor.secondarySystemGroupedBackground)
+                                    )
                                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                         Button(role: .destructive) {
                                             deleteDailyExpense(expense)
