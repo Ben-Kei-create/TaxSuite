@@ -2658,6 +2658,7 @@ struct SettingsView: View {
     @State private var savedProjectNames = TaxSuiteWidgetStore.loadProjectNames()
     @State private var isMigratingProjects = false
     @State private var projectMigrationErrorMessage: String?
+    @State private var showingHowTo = false
     // Google Auth の状態を監視（@Observable singleton）
     @State private var authService = GoogleAuthService.shared
 
@@ -2879,6 +2880,23 @@ struct SettingsView: View {
                         }
                     }
                     Section(header: Text("学ぶ")) {
+                        Button {
+                            showingHowTo = true
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "sparkles")
+                                    .foregroundColor(.black)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("使い方を見る")
+                                        .font(.headline)
+                                        .foregroundColor(.black)
+                                    Text("かんたんな操作のおさらい")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
                         NavigationLink(destination: TaxKnowledgeGlossaryView()) {
                             HStack(spacing: 12) {
                                 Image(systemName: "book.closed.fill")
@@ -2896,6 +2914,9 @@ struct SettingsView: View {
             .navigationTitle("設定")
             .sheet(item: $exportFile) { exportFile in
                 ShareSheet(activityItems: [exportFile.url])
+            }
+            .sheet(isPresented: $showingHowTo) {
+                OnboardingView(onComplete: { showingHowTo = false }, skipPermissions: true)
             }
             .overlay {
                 if isMigratingProjects {

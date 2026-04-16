@@ -10,7 +10,14 @@ struct OnboardingView: View {
 
     var onComplete: () -> Void
 
+    /// Permissions ステップ（外部権限の依頼）を省略するかどうか。
+    /// 設定から「使い方を見る」で呼び出した場合は権限リクエストをスキップする。
+    var skipPermissions: Bool = false
+
     @State private var step: Int = 0
+
+    /// 合計ステップ数。Welcome → Personalize → HowTo ( → Permissions )
+    private var totalSteps: Int { skipPermissions ? 3 : 4 }
 
     // Permissions
     @State private var cameraGranted = false
@@ -35,6 +42,8 @@ struct OnboardingView: View {
                         welcomeStep.transition(stepTransition)
                     } else if step == 1 {
                         personalizeStep.transition(stepTransition)
+                    } else if step == 2 {
+                        howToStep.transition(stepTransition)
                     } else {
                         permissionsStep.transition(stepTransition)
                     }
@@ -229,7 +238,108 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: - Step 2 : Permissions
+    // MARK: - Step 2 : How to use
+
+    private var howToStep: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 44))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.black, .black.opacity(0.55)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        )
+                    )
+                    .padding(.top, 48)
+                    .padding(.bottom, 18)
+
+                Text("かんたんな使い方")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundColor(.black)
+                    .padding(.bottom, 6)
+
+                Text("この4つを覚えるだけで、もう自分の手取りが見えます。")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineSpacing(3)
+                    .padding(.bottom, 24)
+
+                VStack(spacing: 14) {
+                    howToCard(
+                        step: "1",
+                        icon: "plus.circle.fill",
+                        iconColor: .black,
+                        title: "経費・売上を追加",
+                        subtitle: "ダッシュボード右下の ＋ ボタンから。\nレシートはカメラで一発読み取り可能。"
+                    )
+                    howToCard(
+                        step: "2",
+                        icon: "bolt.fill",
+                        iconColor: .orange,
+                        title: "クイック追加で1秒記録",
+                        subtitle: "よく使う経費（カフェ・交通費など）は\nダッシュボードのタイルをタップするだけ。"
+                    )
+                    howToCard(
+                        step: "3",
+                        icon: "square.grid.2x2.fill",
+                        iconColor: .purple,
+                        title: "ウィジェットでさらに速く",
+                        subtitle: "ホーム画面にウィジェットを置くと、\nアプリを開かずに経費を追加できます。"
+                    )
+                    howToCard(
+                        step: "4",
+                        icon: "chart.pie.fill",
+                        iconColor: .blue,
+                        title: "カレンダー・分析で振り返り",
+                        subtitle: "カレンダーで日ごとの支出をヒートマップに。\n分析でカテゴリ別の推移をチェック。"
+                    )
+                }
+                .padding(.bottom, 32)
+            }
+            .padding(.horizontal, 24)
+        }
+    }
+
+    private func howToCard(step: String, icon: String, iconColor: Color, title: String, subtitle: String) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            // 番号バッジ
+            ZStack {
+                Circle()
+                    .fill(Color.black)
+                    .frame(width: 26, height: 26)
+                Text(step)
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(.white)
+            }
+            .padding(.top, 2)
+
+            // アイコン
+            Image(systemName: icon)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(iconColor)
+                .frame(width: 40, height: 40)
+                .background(iconColor.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.black)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .background(Color.black.opacity(0.025))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    // MARK: - Step 3 : Permissions
 
     private var permissionsStep: some View {
         ScrollView(showsIndicators: false) {
@@ -342,7 +452,7 @@ struct OnboardingView: View {
 
     private var progressDots: some View {
         HStack(spacing: 8) {
-            ForEach(0..<3) { index in
+            ForEach(0..<totalSteps, id: \.self) { index in
                 Capsule()
                     .fill(index == step ? Color.black : Color.black.opacity(0.12))
                     .frame(width: index == step ? 24 : 8, height: 8)
@@ -363,6 +473,17 @@ struct OnboardingView: View {
         case 1:
             primaryButton("次へ") {
                 advance()
+            }
+        case 2:
+            // skipPermissions の場合はこのステップが最終ステップ
+            if skipPermissions {
+                primaryButton("完了") {
+                    onComplete()
+                }
+            } else {
+                primaryButton("次へ") {
+                    advance()
+                }
             }
         default:
             primaryButton("ダッシュボードへ", isActive: cameraGranted || cameraChecked) {
