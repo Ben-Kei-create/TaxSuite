@@ -17,13 +17,12 @@
 // [ ] 1. clientID を本番の OAuth クライアント ID に差し替え
 //        → console.cloud.google.com > 認証情報 > OAuth 2.0 クライアント ID (iOS)
 //
-// [ ] 2. OAuth 同意画面に以下のスコープを追加
+// [ ] 2. OAuth 同意画面に以下のスコープを追加（いずれも Sensitive 分類・無料審査）
 //        → console.cloud.google.com > API とサービス > OAuth 同意画面 > スコープを追加
-//        - https://mail.google.com/              （Gmail 送受信）
-//        - https://www.googleapis.com/auth/gmail.readonly  （領収書取り込み）
-//        - https://www.googleapis.com/auth/gmail.compose   （下書き作成）
+//        - https://www.googleapis.com/auth/gmail.compose   （下書き作成・送信）
 //        - https://www.googleapis.com/auth/drive.file      （Google Drive エクスポート）
 //          ※ drive.file はアプリが作成したファイルのみアクセス可能な最小権限スコープ
+//          ※ gmail.readonly / mail.google.com は高額CASA審査が必要なため削除済み
 //
 // [ ] 3. スコープ追加後はユーザーが「サインアウト→再サインイン」で有効になる
 //        （既存ユーザーは次回サインイン時に追加のアクセス許可画面が表示される）
