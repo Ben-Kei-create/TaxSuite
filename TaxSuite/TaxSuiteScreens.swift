@@ -3264,8 +3264,7 @@ struct SettingsView: View {
                         }
                         .padding(.vertical, 2)
 
-                        // ⚠️ RELEASE前必須: プライバシーポリシーの URL を差し替える
-                        if let privacyURL = URL(string: "https://your-privacy-policy-url.com") {
+                        if let privacyURL = URL(string: "https://ben-kei-create.github.io/TaxSuite/privacy.html") {
                             Link(destination: privacyURL) {
                                 HStack(spacing: 12) {
                                     settingsIconTile("hand.raised.fill", tint: .blue)
@@ -3281,7 +3280,7 @@ struct SettingsView: View {
                             }
                         }
 
-                        if let contactURL = URL(string: "mailto:support@taxsuite.app") {
+                        if let contactURL = URL(string: "mailto:tofuodorico@gmail.com") {
                             Link(destination: contactURL) {
                                 HStack(spacing: 12) {
                                     settingsIconTile("envelope.fill", tint: .orange)
