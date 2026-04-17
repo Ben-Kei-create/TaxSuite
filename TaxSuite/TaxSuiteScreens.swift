@@ -2984,10 +2984,6 @@ struct SettingsView: View {
     @State private var exportFile: ExportFile?
     @State private var exportErrorMessage: String?
     @State private var selectedExportFormat: ExportFormat = .standard
-    @State private var projectNameDrafts = TaxSuiteWidgetStore.loadProjectNames()
-    @State private var savedProjectNames = TaxSuiteWidgetStore.loadProjectNames()
-    @State private var isMigratingProjects = false
-    @State private var projectMigrationErrorMessage: String?
     @State private var showingHowTo = false
     // Google Auth の状態を監視（@Observable singleton）
     @State private var authService = GoogleAuthService.shared
@@ -3048,77 +3044,15 @@ struct SettingsView: View {
                     }
                     .sheet(isPresented: $showingProModal) { ProUpgradeView() }
 
-                    // MARK: - 計算設定
+                    // MARK: - 個人設定
                     Section {
-                        HStack {
-                            settingsIconTile("percent", tint: .teal)
-                            Text("推定税率")
-                                .font(.body)
-                                .foregroundColor(.primary)
-                            Spacer()
-                            Picker("", selection: $taxRate) {
-                                Text("10%").tag(0.1)
-                                Text("20%").tag(0.2)
-                                Text("30%").tag(0.3)
-                            }
-                            .tint(.primary)
-                        }
-                        .padding(.vertical, 2)
-                    } header: {
-                        Text("計算")
-                    } footer: {
-                        Text("売上規模によって目安の税率を選択してください。わからなければ20%のままで問題ありません。")
-                    }
-
-                    // MARK: - プロジェクト
-                    Section(
-                        header: Text("プロジェクト"),
-                        footer: Text("デフォルトの3つに加えて最大\(TaxSuiteWidgetSupport.maxProjectCount)個まで追加できます。名前は自由に変更でき、空欄は「メイン業 / 副業 / その他」に戻ります。")
-                    ) {
-                        ForEach(projectNameDrafts.indices, id: \.self) { index in
-                            HStack(spacing: 12) {
-                                projectIndexBadge(index: index)
-                                TextField("プロジェクト\(index + 1)", text: Binding(
-                                    get: { projectNameDrafts[index] },
-                                    set: { projectNameDrafts[index] = $0 }
-                                ))
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .onSubmit(saveProjectNames)
-                            }
-                        }
-                        .onDelete { indexSet in
-                            deleteProjectRows(at: indexSet)
-                        }
-
-                        if projectNameDrafts.count < TaxSuiteWidgetSupport.maxProjectCount {
-                            Button {
-                                addProjectRow()
-                            } label: {
-                                HStack(spacing: 12) {
-                                    settingsIconTile("plus", tint: .blue)
-                                    Text("プロジェクトを追加")
-                                        .font(.body.weight(.medium))
-                                        .foregroundColor(.blue)
-                                    Spacer()
-                                    Text("\(projectNameDrafts.count) / \(TaxSuiteWidgetSupport.maxProjectCount)")
-                                        .font(.caption.monospacedDigit())
-                                        .foregroundColor(.secondary)
-                                }
-                                .padding(.vertical, 2)
-                            }
-                        } else {
-                            HStack(spacing: 12) {
-                                settingsIconTile("checkmark", tint: .gray)
-                                Text("上限に達しました")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                                Text("\(projectNameDrafts.count) / \(TaxSuiteWidgetSupport.maxProjectCount)")
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.vertical, 2)
+                        NavigationLink(destination: PersonalSettingsView(taxRate: $taxRate)) {
+                            settingsNavContent(
+                                icon: "person.crop.circle.fill",
+                                tint: .blue,
+                                title: "個人設定",
+                                subtitle: "税率・プロジェクト名を管理"
+                            )
                         }
                     }
 
@@ -3333,26 +3267,6 @@ struct SettingsView: View {
             .sheet(isPresented: $showingHowTo) {
                 OnboardingView(onComplete: { showingHowTo = false }, skipPermissions: true)
             }
-            .overlay {
-                if isMigratingProjects {
-                    ZStack {
-                        Color.primary.opacity(0.08)
-                            .ignoresSafeArea()
-
-                        VStack(spacing: 12) {
-                            ProgressView()
-                                .progressViewStyle(.circular)
-                            Text("過去データを更新中...")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundColor(.primary)
-                        }
-                        .padding(.horizontal, 22)
-                        .padding(.vertical, 18)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    }
-                    .transition(.opacity)
-                }
-            }
             .alert("CSVを書き出せませんでした", isPresented: Binding(
                 get: { exportErrorMessage != nil },
                 set: { if !$0 { exportErrorMessage = nil } }
@@ -3361,20 +3275,6 @@ struct SettingsView: View {
             } message: {
                 Text(exportErrorMessage ?? "不明なエラーが発生しました。")
             }
-            .alert("プロジェクト名を更新できませんでした", isPresented: Binding(
-                get: { projectMigrationErrorMessage != nil },
-                set: { if !$0 { projectMigrationErrorMessage = nil } }
-            )) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(projectMigrationErrorMessage ?? "不明なエラーが発生しました。")
-            }
-            .onAppear {
-                let loadedProjectNames = TaxSuiteWidgetStore.loadProjectNames()
-                projectNameDrafts = loadedProjectNames
-                savedProjectNames = loadedProjectNames
-            }
-            .onDisappear(perform: saveProjectNames)
         }
     }
 
@@ -3476,8 +3376,143 @@ struct SettingsView: View {
         .padding(.vertical, 2)
     }
 
-    /// プロジェクト番号のバッジ。色のみでの識別ではなく、数字という別の情報軸も使う。
-    private func projectIndexBadge(index: Int) -> some View {
+}
+
+// MARK: - PersonalSettingsView
+
+private struct PersonalSettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Binding var taxRate: Double
+
+    @State private var projectNameDrafts = TaxSuiteWidgetStore.loadProjectNames()
+    @State private var savedProjectNames = TaxSuiteWidgetStore.loadProjectNames()
+    @State private var isMigratingProjects = false
+    @State private var projectMigrationErrorMessage: String?
+
+    var body: some View {
+        TaxSuiteScreenSurface {
+            List {
+                // MARK: 計算設定
+                Section {
+                    HStack {
+                        iconTile("percent", tint: .teal)
+                        Text("推定税率")
+                            .font(.body)
+                            .foregroundColor(.primary)
+                        Spacer()
+                        Picker("", selection: $taxRate) {
+                            Text("10%").tag(0.1)
+                            Text("20%").tag(0.2)
+                            Text("30%").tag(0.3)
+                        }
+                        .tint(.primary)
+                    }
+                    .padding(.vertical, 2)
+                } header: {
+                    Text("計算")
+                } footer: {
+                    Text("売上規模によって目安の税率を選択してください。わからなければ20%のままで問題ありません。")
+                }
+
+                // MARK: プロジェクト
+                Section(
+                    header: Text("プロジェクト"),
+                    footer: Text("デフォルトの3つに加えて最大\(TaxSuiteWidgetSupport.maxProjectCount)個まで追加できます。名前は自由に変更でき、空欄は「メイン業 / 副業 / その他」に戻ります。")
+                ) {
+                    ForEach(projectNameDrafts.indices, id: \.self) { index in
+                        HStack(spacing: 12) {
+                            projectBadge(index: index)
+                            TextField("プロジェクト\(index + 1)", text: Binding(
+                                get: { projectNameDrafts[index] },
+                                set: { projectNameDrafts[index] = $0 }
+                            ))
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .onSubmit(saveProjectNames)
+                        }
+                    }
+                    .onDelete { indexSet in deleteProjectRows(at: indexSet) }
+
+                    if projectNameDrafts.count < TaxSuiteWidgetSupport.maxProjectCount {
+                        Button { addProjectRow() } label: {
+                            HStack(spacing: 12) {
+                                iconTile("plus", tint: .blue)
+                                Text("プロジェクトを追加")
+                                    .font(.body.weight(.medium))
+                                    .foregroundColor(.blue)
+                                Spacer()
+                                Text("\(projectNameDrafts.count) / \(TaxSuiteWidgetSupport.maxProjectCount)")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    } else {
+                        HStack(spacing: 12) {
+                            iconTile("checkmark", tint: .gray)
+                            Text("上限に達しました")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text("\(projectNameDrafts.count) / \(TaxSuiteWidgetSupport.maxProjectCount)")
+                                .font(.caption.monospacedDigit())
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+        }
+        .navigationTitle("個人設定")
+        .overlay {
+            if isMigratingProjects {
+                ZStack {
+                    Color.primary.opacity(0.08).ignoresSafeArea()
+                    VStack(spacing: 12) {
+                        ProgressView().progressViewStyle(.circular)
+                        Text("過去データを更新中...")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.primary)
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 18)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+                .transition(.opacity)
+            }
+        }
+        .alert("プロジェクト名を更新できませんでした", isPresented: Binding(
+            get: { projectMigrationErrorMessage != nil },
+            set: { if !$0 { projectMigrationErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(projectMigrationErrorMessage ?? "不明なエラーが発生しました。")
+        }
+        .onAppear {
+            let loaded = TaxSuiteWidgetStore.loadProjectNames()
+            projectNameDrafts = loaded
+            savedProjectNames = loaded
+        }
+        .onDisappear(perform: saveProjectNames)
+    }
+
+    // MARK: Helpers
+
+    private func iconTile(_ name: String, tint: Color) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(tint.opacity(0.15))
+                .frame(width: 32, height: 32)
+            Image(systemName: name)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(tint)
+        }
+    }
+
+    private func projectBadge(index: Int) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(Color.primary.opacity(0.07))
@@ -3488,18 +3523,16 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: Project management
+
     private func saveProjectNames() {
         let previousNames = savedProjectNames
         let normalizedNames = TaxSuiteWidgetStore.saveProjectNames(projectNameDrafts)
         projectNameDrafts = normalizedNames
         savedProjectNames = normalizedNames
-
         let renamePairs = renamedProjectPairs(from: previousNames, to: normalizedNames)
         guard !renamePairs.isEmpty else { return }
-
-        Task {
-            await migrateProjectReferences(using: renamePairs)
-        }
+        Task { await migrateProjectReferences(using: renamePairs) }
     }
 
     private func addProjectRow() {
@@ -3508,15 +3541,10 @@ struct SettingsView: View {
     }
 
     private func deleteProjectRows(at offsets: IndexSet) {
-        // 最小件数（デフォルトの 3 件）を割らないように削除を制限する
         let minCount = TaxSuiteWidgetSupport.minProjectCount
         guard projectNameDrafts.count > minCount else { return }
-
         let maxDeletable = projectNameDrafts.count - minCount
-        // 先頭から削除しても最小件数を保てる範囲だけ受け入れる
-        let sortedOffsets = Array(offsets).sorted()
-        let allowedOffsets = Array(sortedOffsets.prefix(maxDeletable))
-
+        let allowedOffsets = Array(Array(offsets).sorted().prefix(maxDeletable))
         var updated = projectNameDrafts
         for offset in allowedOffsets.reversed() {
             guard updated.indices.contains(offset) else { continue }
@@ -3527,92 +3555,46 @@ struct SettingsView: View {
     }
 
     private func renamedProjectPairs(from previousNames: [String], to nextNames: [String]) -> [(old: String, new: String)] {
-        // 追加・削除があった場合は位置ベースの比較で誤ったリネーム扱いになるので、
-        // 件数が一致する「インプレース編集」のときだけ位置比較を行う。
         guard previousNames.count == nextNames.count else { return [] }
-
-        return zip(previousNames, nextNames).compactMap { previousName, nextName in
-            let trimmedPrevious = previousName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let trimmedNext = nextName.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            guard !trimmedPrevious.isEmpty, !trimmedNext.isEmpty, trimmedPrevious != trimmedNext else {
-                return nil
-            }
-
-            return (old: trimmedPrevious, new: trimmedNext)
+        return zip(previousNames, nextNames).compactMap { prev, next in
+            let p = prev.trimmingCharacters(in: .whitespacesAndNewlines)
+            let n = next.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !p.isEmpty, !n.isEmpty, p != n else { return nil }
+            return (old: p, new: n)
         }
     }
 
     @MainActor
     private func migrateProjectReferences(using renamePairs: [(old: String, new: String)]) async {
         guard !renamePairs.isEmpty else { return }
-
         isMigratingProjects = true
         defer { isMigratingProjects = false }
-
         await Task.yield()
-
-        let renameLookup = Dictionary(uniqueKeysWithValues: renamePairs.map { ($0.old, $0.new) })
-
+        let lookup = Dictionary(uniqueKeysWithValues: renamePairs.map { ($0.old, $0.new) })
         do {
             var didChange = false
-
             let expensesToUpdate = try modelContext.fetch(FetchDescriptor<ExpenseItem>())
-            for (index, expense) in expensesToUpdate.enumerated() {
-                let currentProject = expense.project
-                if let newProject = renameLookup[currentProject], currentProject != newProject {
-                    expense.project = newProject
-                    didChange = true
-                }
-
-                if index > 0 && index.isMultiple(of: 40) {
-                    await Task.yield()
-                }
+            for (i, item) in expensesToUpdate.enumerated() {
+                if let n = lookup[item.project], item.project != n { item.project = n; didChange = true }
+                if i > 0 && i.isMultiple(of: 40) { await Task.yield() }
             }
-
             let incomesToUpdate = try modelContext.fetch(FetchDescriptor<IncomeItem>())
-            for (index, income) in incomesToUpdate.enumerated() {
-                let currentProject = income.project
-                if let newProject = renameLookup[currentProject], currentProject != newProject {
-                    income.project = newProject
-                    didChange = true
-                }
-
-                if index > 0 && index.isMultiple(of: 40) {
-                    await Task.yield()
-                }
+            for (i, item) in incomesToUpdate.enumerated() {
+                if let n = lookup[item.project], item.project != n { item.project = n; didChange = true }
+                if i > 0 && i.isMultiple(of: 40) { await Task.yield() }
             }
-
-            let recurringExpensesToUpdate = try modelContext.fetch(FetchDescriptor<RecurringExpense>())
-            for (index, recurringExpense) in recurringExpensesToUpdate.enumerated() {
-                let currentProject = recurringExpense.project
-                if let newProject = renameLookup[currentProject], currentProject != newProject {
-                    recurringExpense.project = newProject
-                    didChange = true
-                }
-
-                if index > 0 && index.isMultiple(of: 40) {
-                    await Task.yield()
-                }
+            let recurringToUpdate = try modelContext.fetch(FetchDescriptor<RecurringExpense>())
+            for (i, item) in recurringToUpdate.enumerated() {
+                if let n = lookup[item.project], item.project != n { item.project = n; didChange = true }
+                if i > 0 && i.isMultiple(of: 40) { await Task.yield() }
             }
-
-            var shortcutSlots = TaxSuiteWidgetStore.loadButtonSlots()
-            var didUpdateShortcutSlots = false
-            for index in shortcutSlots.indices {
-                let currentProject = shortcutSlots[index].project
-                if let newProject = renameLookup[currentProject], currentProject != newProject {
-                    shortcutSlots[index].project = newProject
-                    didUpdateShortcutSlots = true
-                }
+            var slots = TaxSuiteWidgetStore.loadButtonSlots()
+            var slotsChanged = false
+            for i in slots.indices {
+                if let n = lookup[slots[i].project], slots[i].project != n { slots[i].project = n; slotsChanged = true }
             }
-
-            if didUpdateShortcutSlots {
-                TaxSuiteWidgetStore.saveButtonSlots(shortcutSlots)
-            }
-
-            if didChange {
-                try modelContext.save()
-            }
+            if slotsChanged { TaxSuiteWidgetStore.saveButtonSlots(slots) }
+            if didChange { try modelContext.save() }
         } catch {
             projectMigrationErrorMessage = error.localizedDescription
         }
