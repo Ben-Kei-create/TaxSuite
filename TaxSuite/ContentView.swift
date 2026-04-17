@@ -227,5 +227,5 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView().modelContainer(for: [ExpenseItem.self, RecurringExpense.self, IncomeItem.self, LocationTrigger.self], inMemory: true)
+    ContentView(showTutorial: .constant(false)).modelContainer(for: [ExpenseItem.self, RecurringExpense.self, IncomeItem.self, LocationTrigger.self], inMemory: true)
 }
