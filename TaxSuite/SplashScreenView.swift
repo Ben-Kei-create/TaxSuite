@@ -3,16 +3,20 @@ import SwiftData
 
 struct TaxSuiteLaunchContainerView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage("hasSeenTutorial") private var hasSeenTutorial = false
 
     @State private var showContent = false
     @State private var isShowingSplash = true
     @State private var isSplashExiting = false
     @State private var hasStartedLaunchSequence = false
+    // オンボーディングを「今セッションで完了した」場合だけ true になる。
+    // AppStorage ではなく @State にすることで既存ユーザーへの誤表示を防ぐ。
+    @State private var pendingTutorial = false
 
     var body: some View {
         ZStack {
             if showContent {
-                ContentView()
+                ContentView(showTutorial: $pendingTutorial)
                     .transition(.opacity)
             } else {
                 Color.white.ignoresSafeArea()
@@ -51,7 +55,13 @@ struct TaxSuiteLaunchContainerView: View {
         )) {
             OnboardingView {
                 hasCompletedOnboarding = true
+                // 新規ユーザーがオンボーディングを完了したときだけチュートリアルを予約
+                if !hasSeenTutorial { pendingTutorial = true }
             }
+        }
+        // チュートリアルが終わったら永続フラグを立てる
+        .onChange(of: pendingTutorial) { _, isShowing in
+            if !isShowing { hasSeenTutorial = true }
         }
     }
 }

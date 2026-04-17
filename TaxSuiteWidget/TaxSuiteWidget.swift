@@ -8,13 +8,14 @@ struct TaxSuiteEntry: TimelineEntry {
     let date: Date
     let snapshot: TaxSuiteWidgetSnapshot
     let buttonSlots: [WidgetButtonSlot]
+    let hasAppLaunched: Bool
 }
 
 // MARK: - Timeline Provider
 
 struct TaxSuiteProvider: TimelineProvider {
     func placeholder(in context: Context) -> TaxSuiteEntry {
-        TaxSuiteEntry(date: .now, snapshot: .preview, buttonSlots: WidgetButtonSlot.defaultSlots)
+        TaxSuiteEntry(date: .now, snapshot: .preview, buttonSlots: WidgetButtonSlot.defaultSlots, hasAppLaunched: true)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (TaxSuiteEntry) -> Void) {
@@ -23,34 +24,70 @@ struct TaxSuiteProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<TaxSuiteEntry>) -> Void) {
         let entry = readEntry()
-        let next = Calendar.current.date(byAdding: .hour, value: 1, to: .now)!
-        completion(Timeline(entries: [entry], policy: .after(next)))
+        // 翌日 0:00 と 1 時間後の早い方でリフレッシュ
+        // → 「今日の経費」が日付変更時に即座に更新される
+        let calendar = Calendar.current
+        let tomorrow = calendar.startOfDay(for: calendar.date(byAdding: .day, value: 1, to: .now) ?? .now)
+        let oneHourLater = Date().addingTimeInterval(3600)
+        let nextRefresh = min(tomorrow, oneHourLater)
+        completion(Timeline(entries: [entry], policy: .after(nextRefresh)))
     }
 
     private func readEntry() -> TaxSuiteEntry {
         TaxSuiteEntry(
             date: .now,
             snapshot: TaxSuiteWidgetStore.load() ?? .preview,
-            buttonSlots: TaxSuiteWidgetStore.loadButtonSlots()
+            buttonSlots: TaxSuiteWidgetStore.loadButtonSlots(),
+            hasAppLaunched: TaxSuiteWidgetStore.hasAppLaunched
         )
     }
 }
 
-// MARK: - Widget View
+// MARK: - Widget View（ファミリーごとに切り替え）
 
 struct TaxSuiteWidgetView: View {
     var entry: TaxSuiteEntry
+    @Environment(\.widgetFamily) var family
 
     var body: some View {
-        mediumView
+        switch family {
+        case .systemMedium:
+            if entry.hasAppLaunched { mediumView } else { notReadyView }
+        case .accessoryRectangular:
+            accessoryRectangularView
+        case .accessoryCircular:
+            accessoryCircularView
+        case .accessoryInline:
+            accessoryInlineView
+        default:
+            if entry.hasAppLaunched { mediumView } else { notReadyView }
+        }
     }
 
-    // MARK: Medium — 左パネルタップでアプリ、右ボタンで即時記録
+    // MARK: - Not Ready（アプリ未起動）
+
+    var notReadyView: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "chart.pie.fill")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text("TaxSuite")
+                .font(.headline.weight(.bold))
+            Text("アプリを開いてウィジェットを有効化")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .widgetURL(URL(string: "taxsuite://dashboard"))
+        .containerBackground(for: .widget) { widgetBackground }
+    }
+
+    // MARK: - systemMedium（左：手取り、右：ショートカット）
 
     var mediumView: some View {
         HStack(alignment: .top, spacing: 10) {
 
-            // 左パネル: 推定手取り（タップでアプリを開く）
             Link(destination: URL(string: "taxsuite://dashboard")!) {
                 VStack(alignment: .leading, spacing: 6) {
                     headerRow
@@ -79,7 +116,6 @@ struct TaxSuiteWidgetView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
 
-            // 右パネル: ショートカット（即時記録）
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 4) {
                     Image(systemName: "bolt.fill")
@@ -107,7 +143,69 @@ struct TaxSuiteWidgetView: View {
         .containerBackground(for: .widget) { widgetBackground }
     }
 
-    // MARK: - Header Row（コンパクト、オーバーフローなし）
+    // MARK: - accessoryRectangular（ロック画面：横長）
+
+    var accessoryRectangularView: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) {
+                Image(systemName: "yensign.circle.fill")
+                    .font(.system(size: 9, weight: .semibold))
+                Text("推定手取り")
+                    .font(.system(size: 10, weight: .medium))
+                Spacer()
+                Text(entry.snapshot.monthLabel)
+                    .font(.system(size: 10))
+            }
+            .foregroundStyle(.secondary)
+
+            Text(currency(entry.snapshot.takeHome))
+                .font(.system(size: 18, weight: .bold, design: .rounded).monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .widgetAccentable()
+
+            Gauge(value: takeHomeProgress) {
+                EmptyView()
+            } currentValueLabel: {
+                Text("\(Int(takeHomeProgress * 100))%")
+            }
+            .gaugeStyle(.accessoryLinear)
+            .tint(.primary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .widgetURL(URL(string: "taxsuite://dashboard"))
+        .containerBackground(for: .widget) { Color.clear }
+    }
+
+    // MARK: - accessoryCircular（ロック画面：丸）
+
+    var accessoryCircularView: some View {
+        Gauge(value: takeHomeProgress) {
+            Image(systemName: "yensign")
+                .font(.system(size: 8, weight: .bold))
+        } currentValueLabel: {
+            Text("\(Int(takeHomeProgress * 100))%")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+        }
+        .gaugeStyle(.accessoryCircular)
+        .widgetAccentable()
+        .widgetURL(URL(string: "taxsuite://dashboard"))
+        .containerBackground(for: .widget) { Color.clear }
+    }
+
+    // MARK: - accessoryInline（ロック画面：1行テキスト）
+
+    var accessoryInlineView: some View {
+        Label(
+            "\(currency(entry.snapshot.takeHome))  残り\(Int(takeHomeProgress * 100))%",
+            systemImage: "yensign.circle"
+        )
+        .widgetAccentable()
+        .widgetURL(URL(string: "taxsuite://dashboard"))
+        .containerBackground(for: .widget) { Color.clear }
+    }
+
+    // MARK: - Header Row
 
     private var headerRow: some View {
         HStack(spacing: 0) {
@@ -130,7 +228,7 @@ struct TaxSuiteWidgetView: View {
         }
     }
 
-    // MARK: - Quick Add Button（動的スロットから生成）
+    // MARK: - Quick Add Button
 
     private func quickAddButton(slot: WidgetButtonSlot) -> some View {
         Button(
@@ -221,7 +319,7 @@ struct TaxSuiteWidgetView: View {
         }
     }
 
-    // MARK: - Shared sub-views
+    // MARK: - Shared helpers
 
     private var widgetBackground: some View {
         LinearGradient(
@@ -270,7 +368,6 @@ struct TaxSuiteWidgetView: View {
         }
     }
 
-
     private var takeHomeProgress: Double {
         guard entry.snapshot.currentMonthRevenue > 0 else { return 0.08 }
         return min(max(entry.snapshot.takeHome / entry.snapshot.currentMonthRevenue, 0.08), 1.0)
@@ -297,7 +394,12 @@ struct TaxSuiteWidget: Widget {
         }
         .configurationDisplayName("TaxSuite")
         .description("推定手取りの確認と、よく使う経費の即時追加")
-        .supportedFamilies([.systemMedium])
+        .supportedFamilies([
+            .systemMedium,
+            .accessoryRectangular,
+            .accessoryCircular,
+            .accessoryInline
+        ])
     }
 }
 
@@ -321,20 +423,29 @@ private extension TaxSuiteWidgetSnapshot {
 #Preview("Medium", as: .systemMedium) {
     TaxSuiteWidget()
 } timeline: {
-    TaxSuiteEntry(date: .now, snapshot: .preview, buttonSlots: WidgetButtonSlot.defaultSlots)
+    TaxSuiteEntry(date: .now, snapshot: .preview, buttonSlots: WidgetButtonSlot.defaultSlots, hasAppLaunched: true)
 }
 
-#Preview("Medium (カスタム)", as: .systemMedium) {
+#Preview("Medium (未起動)", as: .systemMedium) {
     TaxSuiteWidget()
 } timeline: {
-    TaxSuiteEntry(
-        date: .now,
-        snapshot: .preview,
-        buttonSlots: [
-            WidgetButtonSlot(id: 0, title: "スタバ",   amount: 750,  category: "会議費",   project: TaxSuiteWidgetSupport.defaultProjectNames[0]),
-            WidgetButtonSlot(id: 1, title: "新幹線",   amount: 6600, category: "交通費",   project: TaxSuiteWidgetSupport.defaultProjectNames[1]),
-            WidgetButtonSlot(id: 2, title: "AWS",      amount: 3200, category: "通信費",   project: TaxSuiteWidgetSupport.defaultProjectNames[0]),
-            WidgetButtonSlot(id: 3, title: "書籍",     amount: 2200, category: "消耗品費", project: TaxSuiteWidgetSupport.defaultProjectNames[2])
-        ]
-    )
+    TaxSuiteEntry(date: .now, snapshot: .preview, buttonSlots: WidgetButtonSlot.defaultSlots, hasAppLaunched: false)
+}
+
+#Preview("ロック画面: 横長", as: .accessoryRectangular) {
+    TaxSuiteWidget()
+} timeline: {
+    TaxSuiteEntry(date: .now, snapshot: .preview, buttonSlots: WidgetButtonSlot.defaultSlots, hasAppLaunched: true)
+}
+
+#Preview("ロック画面: 丸", as: .accessoryCircular) {
+    TaxSuiteWidget()
+} timeline: {
+    TaxSuiteEntry(date: .now, snapshot: .preview, buttonSlots: WidgetButtonSlot.defaultSlots, hasAppLaunched: true)
+}
+
+#Preview("ロック画面: 1行", as: .accessoryInline) {
+    TaxSuiteWidget()
+} timeline: {
+    TaxSuiteEntry(date: .now, snapshot: .preview, buttonSlots: WidgetButtonSlot.defaultSlots, hasAppLaunched: true)
 }

@@ -16,4 +16,14 @@ enum TaxSuitePersistence {
         )
         return try ModelContainer(for: schema, configurations: [configuration])
     }
+
+    /// iCloud が利用できない場合のフォールバック（ローカルのみ、データは保持）
+    static func makeContainerLocalOnly() throws -> ModelContainer {
+        let configuration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            cloudKitDatabase: .none
+        )
+        return try ModelContainer(for: schema, configurations: [configuration])
+    }
 }

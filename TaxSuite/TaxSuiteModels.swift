@@ -59,6 +59,8 @@ final class ExpenseItem {
     /// 手動追加・ウィジェット・定期支出などから追加されたものは nil のまま。
     /// 一覧表示で「自動記録」バッジを出す判定に使う。
     var locationTriggerName: String? = nil
+    /// 領収書スキャン時に撮影された画像のJPEGサムネイル（40%品質）。スキャン以外の経費は nil。
+    var receiptThumbnailData: Data? = nil
 
     init(
         timestamp: Date = Date(),
@@ -69,7 +71,8 @@ final class ExpenseItem {
         businessRatio: Double = 1.0,
         note: String = "",
         recurringExpenseID: String? = nil,
-        locationTriggerName: String? = nil
+        locationTriggerName: String? = nil,
+        receiptThumbnailData: Data? = nil
     ) {
         self.timestamp = timestamp
         self.createdAt = Date()
@@ -81,6 +84,7 @@ final class ExpenseItem {
         self.note = note
         self.recurringExpenseID = recurringExpenseID
         self.locationTriggerName = locationTriggerName
+        self.receiptThumbnailData = receiptThumbnailData
     }
 
     var effectiveAmount: Double { amount * businessRatio }
@@ -110,8 +114,20 @@ final class RecurringExpense {
     var note: String = ""
     var lastExecutedYear: Int = 0
     var lastExecutedMonth: Int = 0
+    /// 繰り返し頻度: "monthly" / "weekly" / "biweekly" / "quarterly"
+    var frequency: String = "monthly"
+    /// 週次・隔週用の曜日 (1=月, 2=火, …, 7=日)。月次・四半期では無視される
+    var dayOfWeek: Int = 2
 
-    init(title: String, amount: Double, project: String, dayOfMonth: Int, note: String = "") {
+    init(
+        title: String,
+        amount: Double,
+        project: String,
+        dayOfMonth: Int,
+        note: String = "",
+        frequency: String = "monthly",
+        dayOfWeek: Int = 2
+    ) {
         self.title = title
         self.amount = amount
         self.project = project
@@ -119,6 +135,24 @@ final class RecurringExpense {
         self.note = note
         self.lastExecutedYear = 0
         self.lastExecutedMonth = 0
+        self.frequency = frequency
+        self.dayOfWeek = dayOfWeek
+    }
+}
+
+enum RecurringFrequency: String, CaseIterable {
+    case monthly   = "monthly"
+    case weekly    = "weekly"
+    case biweekly  = "biweekly"
+    case quarterly = "quarterly"
+
+    var label: String {
+        switch self {
+        case .monthly:   return "月次"
+        case .weekly:    return "週次"
+        case .biweekly:  return "隔週"
+        case .quarterly: return "四半期（3ヶ月ごと）"
+        }
     }
 }
 
@@ -132,14 +166,45 @@ extension RecurringExpense {
         return String(describing: persistentModelID)
     }
 
+    var frequencyDisplayLabel: String {
+        switch RecurringFrequency(rawValue: frequency) ?? .monthly {
+        case .monthly:   return "毎月\(dayOfMonth)日"
+        case .quarterly: return "四半期\(dayOfMonth)日"
+        case .weekly:    return "毎週\(weekdayShortName)"
+        case .biweekly:  return "隔週\(weekdayShortName)"
+        }
+    }
+
+    private var weekdayShortName: String {
+        switch dayOfWeek {
+        case 1: return "日曜"
+        case 2: return "月曜"
+        case 3: return "火曜"
+        case 4: return "水曜"
+        case 5: return "木曜"
+        case 6: return "金曜"
+        case 7: return "土曜"
+        default: return "月曜"
+        }
+    }
+
+    /// 参照日に対して「この定期支出をいつ計上すべきか」を返す
     func scheduledDate(in referenceDate: Date, calendar: Calendar = .current) -> Date {
-        let safeDay = max(1, dayOfMonth)
-        let maxDay = calendar.range(of: .day, in: .month, for: referenceDate)?.count ?? safeDay
+        switch RecurringFrequency(rawValue: frequency) ?? .monthly {
+        case .monthly, .quarterly:
+            let safeDay = max(1, dayOfMonth)
+            let maxDay = calendar.range(of: .day, in: .month, for: referenceDate)?.count ?? safeDay
+            var components = calendar.dateComponents([.year, .month], from: referenceDate)
+            components.day = min(safeDay, maxDay)
+            return calendar.date(from: components) ?? referenceDate
 
-        var components = calendar.dateComponents([.year, .month], from: referenceDate)
-        components.day = min(safeDay, maxDay)
-
-        return calendar.date(from: components) ?? referenceDate
+        case .weekly, .biweekly:
+            // 参照週の指定曜日を返す（weekday: 1=日, 2=月, …, 7=土）
+            let targetWeekday = max(1, min(dayOfWeek, 7))
+            var components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: referenceDate)
+            components.weekday = targetWeekday
+            return calendar.date(from: components) ?? referenceDate
+        }
     }
 }
 
@@ -997,7 +1062,7 @@ struct GlossaryTerm: Identifiable, Hashable, Decodable {
                 let payload = try JSONDecoder().decode(GlossaryTermsPayload.self, from: data)
                 return payload.terms
             } catch {
-                print("Failed to decode GlossaryTerms.json: \(error)")
+                break // GlossaryTerms.json の読み込み失敗時は空リストを返す
             }
         }
 
@@ -1024,4 +1089,5 @@ struct ReceiptBatchDraft: Identifiable {
     var note: String = ""
     var date: Date = Date()
     var businessRatio: Double = 1.0
+    var thumbnailData: Data? = nil
 }

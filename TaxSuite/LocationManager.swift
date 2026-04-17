@@ -201,7 +201,7 @@ extension LocationManager: CLLocationManagerDelegate {
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, monitoringDidFailFor region: CLRegion?, withError error: Error) {
-        print("[LocationManager] monitoringDidFail: \(error.localizedDescription)")
+        // ジオフェンスの監視失敗はユーザーに通知不要（次回起動時に再登録される）
     }
 }
 

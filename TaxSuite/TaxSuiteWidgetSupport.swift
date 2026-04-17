@@ -9,6 +9,7 @@ import WidgetKit
 nonisolated enum TaxSuiteWidgetSupport {
     static let appGroupID = "group.com.fumiakiMogi777.TaxSuite"
     static let snapshotKey = "taxsuite_widget_snapshot_v1"
+    static let hasAppLaunchedKey = "taxsuite_has_app_launched_v1"
     static let defaultTaxRate = 0.2
     static let defaultProjectNames = ["メイン業", "副業", "その他"]
     /// プロジェクトの最大登録数（デフォルト 3 + 追加枠 7）
@@ -119,6 +120,18 @@ nonisolated struct TaxSuiteQuickExpenseAction: Codable, Equatable, Identifiable 
 }
 
 nonisolated enum TaxSuiteWidgetStore {
+    /// アプリが一度でも起動されたことを App Group に記録し、ウィジェットをリロードする。
+    nonisolated static func markAppLaunched() {
+        guard !sharedDefaults.bool(forKey: TaxSuiteWidgetSupport.hasAppLaunchedKey) else { return }
+        sharedDefaults.set(true, forKey: TaxSuiteWidgetSupport.hasAppLaunchedKey)
+        reloadTimelines()
+    }
+
+    /// アプリが一度でも起動されたかを返す。
+    nonisolated static var hasAppLaunched: Bool {
+        sharedDefaults.bool(forKey: TaxSuiteWidgetSupport.hasAppLaunchedKey)
+    }
+
     nonisolated static func save(snapshot: TaxSuiteWidgetSnapshot) {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
