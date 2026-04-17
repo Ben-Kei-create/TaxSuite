@@ -30,21 +30,18 @@ extension View {
 }
 
 struct TaxSuiteBannerHeader: View {
-    @AppStorage("isTaxSuiteProEnabled") private var isTaxSuiteProEnabled = false
-
     var body: some View {
-        if !isTaxSuiteProEnabled {
-            AdBannerView()
-                .frame(height: 50)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 16)
-                .padding(.top, 6)
-                .padding(.bottom, 2)
-        }
+        AdBannerView()
+            .frame(height: 50)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 16)
+            .padding(.top, 6)
+            .padding(.bottom, 2)
     }
 }
 
 struct TaxSuiteScreenSurface<Content: View>: View {
+    @AppStorage("isTaxSuiteProEnabled") private var isTaxSuiteProEnabled = false
     let content: () -> Content
 
     init(@ViewBuilder content: @escaping () -> Content) {
@@ -55,8 +52,11 @@ struct TaxSuiteScreenSurface<Content: View>: View {
         ZStack {
             Color(UIColor.systemGroupedBackground).ignoresSafeArea()
 
-            VStack(spacing: 8) {
-                TaxSuiteBannerHeader()
+            VStack(spacing: 0) {
+                if !isTaxSuiteProEnabled {
+                    TaxSuiteBannerHeader()
+                        .padding(.bottom, 8)
+                }
                 content()
             }
         }
