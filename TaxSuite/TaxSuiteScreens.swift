@@ -1114,16 +1114,24 @@ struct WalletChargeInputView: View {
         Binding(
             get: { amountText },
             set: { newValue in
-                let filtered = newValue.filter { character in
-                    character.isNumber || character == "."
-                }
-
+                let filtered = newValue.filter { $0.isNumber || $0 == "." }
                 let components = filtered.split(separator: ".", omittingEmptySubsequences: false)
+                var result: String
                 if components.count <= 2 {
-                    amountText = filtered
+                    result = filtered
                 } else {
-                    amountText = components.prefix(2).joined(separator: ".")
+                    result = components.prefix(2).joined(separator: ".")
                 }
+                // 整数部 8桁・小数部 2桁まで（最大 ¥99,999,999）
+                let parts = result.split(separator: ".", omittingEmptySubsequences: false)
+                let intPart = String(parts.first ?? "").prefix(8)
+                if parts.count == 2 {
+                    let decPart = String(parts[1]).prefix(2)
+                    result = "\(intPart).\(decPart)"
+                } else {
+                    result = String(intPart)
+                }
+                amountText = result
             }
         )
     }
