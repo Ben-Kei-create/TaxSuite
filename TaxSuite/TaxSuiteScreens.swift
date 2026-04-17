@@ -103,6 +103,8 @@ struct DashboardView: View {
     @State private var swipeRevealedExpenseID: PersistentIdentifier? = nil
     @State private var showingBulkDeleteConfirm = false
     @State private var saveError: String?
+    @State private var scrollToTopTrigger = false
+    @State private var showingBulkEdit = false
 
     var currentMonthRevenue: Double {
         let calendar = Calendar.current
@@ -207,29 +209,34 @@ struct DashboardView: View {
         NavigationStack {
             TaxSuiteScreenSurface {
                 ZStack(alignment: .bottom) {
-                    ScrollView {
-                        VStack(spacing: 26) {
-                            mainMetricCard
-                            quickAddSection
-                            todayExpensesSection
-                            Spacer().frame(height: 104)
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            VStack(spacing: 26) {
+                                Color.clear.frame(height: 0).id("dashTop")
+                                mainMetricCard
+                                quickAddSection
+                                todayExpensesSection
+                                Spacer().frame(height: 104)
+                            }
+                            .padding(.top, 6)
+                            .padding(.bottom, 20)
                         }
-                        .padding(.top, 6)
-                        .padding(.bottom, 20)
-                    }
-                    // スクロール時に右端へ iOS 標準の細いインジケータを出す。
-                    // `.automatic` は触った瞬間だけ出て、停止するとフェードアウトする挙動。
-                    .scrollIndicators(.automatic)
-                    // スワイプで開いている行があるときに背景をタップすると閉じられるようにする
-                    .simultaneousGesture(
-                        TapGesture().onEnded {
-                            if swipeRevealedExpenseID != nil {
-                                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                                    swipeRevealedExpenseID = nil
+                        .scrollIndicators(.automatic)
+                        .simultaneousGesture(
+                            TapGesture().onEnded {
+                                if swipeRevealedExpenseID != nil {
+                                    withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                                        swipeRevealedExpenseID = nil
+                                    }
                                 }
                             }
+                        )
+                        .onChange(of: scrollToTopTrigger) { _, _ in
+                            withAnimation(.easeOut(duration: 0.35)) {
+                                proxy.scrollTo("dashTop", anchor: .top)
+                            }
                         }
-                    )
+                    }
 
                     if isSelectionMode {
                         selectionActionBar
@@ -272,6 +279,9 @@ struct DashboardView: View {
             .sheet(item: $editingExpense) { expense in ExpenseEditView(expense: expense) }
             .sheet(isPresented: $showingReceiptImporter) { ReceiptImportView() }
             .sheet(isPresented: $showingProModal) { ProUpgradeView() }
+            .sheet(isPresented: $showingBulkEdit) {
+                BulkExpenseEditView(expenses: selectedExpenses)
+            }
             .confirmationDialog(
                 "選択した\(selectedExpenseIDs.count)件の経費を削除しますか？",
                 isPresented: $showingBulkDeleteConfirm,
@@ -368,15 +378,32 @@ struct DashboardView: View {
         generator.notificationOccurred(.success)
     }
 
-    // 選択モード時にボトムへ表示する削除確認バー
+    // 選択モード時にボトムへ表示するアクションバー
     private var selectionActionBar: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
+            if isTaxSuiteProEnabled {
+                Button {
+                    showingBulkEdit = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "pencil")
+                        Text(selectedExpenseIDs.isEmpty ? "編集" : "\(selectedExpenseIDs.count)件を編集")
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.primary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.primary.opacity(0.1))
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(selectedExpenseIDs.isEmpty)
+            }
+
             Button(action: { showingBulkDeleteConfirm = true }) {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Image(systemName: "trash.fill")
-                    Text(selectedExpenseIDs.isEmpty
-                         ? "削除"
-                         : "\(selectedExpenseIDs.count)件を削除")
+                    Text(selectedExpenseIDs.isEmpty ? "削除" : "\(selectedExpenseIDs.count)件を削除")
                         .fontWeight(.semibold)
                 }
                 .foregroundColor(.white)
@@ -390,6 +417,10 @@ struct DashboardView: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 18)
+    }
+
+    private var selectedExpenses: [ExpenseItem] {
+        todayExpenses.filter { selectedExpenseIDs.contains($0.persistentModelID) }
     }
 
     private func openIncomeSheet() {
@@ -549,8 +580,10 @@ struct DashboardView: View {
             Button(action: openIncomeSheet) {
                 Label("売上を入力", systemImage: "arrow.down.circle.fill")
             }
-            Button(action: openReceiptImporter) {
-                Label("領収書から追加", systemImage: "camera.fill")
+            if isTaxSuiteProEnabled {
+                Button(action: openReceiptImporter) {
+                    Label("写真で追加", systemImage: "photo.on.rectangle")
+                }
             }
         } label: {
             VStack(spacing: 6) {
@@ -720,6 +753,7 @@ struct DashboardView: View {
                 VStack(spacing: 8) {
                     ForEach(todayExpenses) { expense in
                         TodayExpenseRow(
+
                             expense: expense,
                             isSelectionMode: isSelectionMode,
                             isSelected: selectedExpenseIDs.contains(expense.persistentModelID),
@@ -756,6 +790,28 @@ struct DashboardView: View {
                                 deleteExpense(expense)
                             }
                         )
+                    }
+
+                    // トップへ戻るボタン（経費が3件以上のときだけ表示）
+                    if todayExpenses.count >= 3 {
+                        Button {
+                            scrollToTopTrigger.toggle()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.up")
+                                    .font(.system(size: 10, weight: .semibold))
+                                Text("トップへ")
+                                    .font(.caption2.weight(.semibold))
+                            }
+                            .foregroundColor(.secondary)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 14)
+                            .background(Color.primary.opacity(0.06))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 4)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -4800,6 +4856,145 @@ struct ReceiptImportView: View {
                     note: draft.note
                 )
             )
+        }
+        do {
+            try modelContext.save()
+            dismiss()
+        } catch {
+            saveError = error.localizedDescription
+        }
+    }
+}
+
+// MARK: - BulkExpenseEditView
+
+private struct BulkEditDraft: Identifiable {
+    let id: PersistentIdentifier
+    var title: String
+    var amountText: String
+    var category: String
+    var project: String
+    var note: String
+    var businessRatio: Double
+    var timestamp: Date
+
+    init(expense: ExpenseItem) {
+        id             = expense.persistentModelID
+        title          = expense.title
+        amountText     = String(Int(expense.amount))
+        category       = expense.category
+        project        = expense.project
+        note           = expense.note
+        businessRatio  = expense.businessRatio
+        timestamp      = expense.timestamp
+    }
+}
+
+struct BulkExpenseEditView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+
+    let expenses: [ExpenseItem]
+
+    @State private var drafts: [BulkEditDraft] = []
+    @State private var saveError: String?
+
+    private var categoryOptions: [String] { ExpenseAutofillPredictor.defaultCategories }
+    private var projectOptions: [String]  { TaxSuiteWidgetStore.projectNameOptions(including: []) }
+
+    var body: some View {
+        NavigationStack {
+            TaxSuiteScreenSurface {
+                Form {
+                    Section {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("まとめて編集")
+                                .font(.title3.bold())
+                            Text("\(expenses.count)件の経費をまとめて修正できます。")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        .padding(.vertical, 2)
+                    }
+
+                    ForEach($drafts) { $draft in
+                        Section {
+                            TextField("項目名", text: $draft.title)
+                            WalletChargeInputView(amountText: $draft.amountText)
+                            DatePicker("日付", selection: $draft.timestamp, in: ...Date(), displayedComponents: .date)
+                                .datePickerStyle(.compact)
+                                .environment(\.locale, Locale(identifier: "ja_JP"))
+                            Picker("カテゴリ", selection: $draft.category) {
+                                ForEach(categoryOptions, id: \.self) { Text($0).tag($0) }
+                            }
+                            Picker("プロジェクト", selection: $draft.project) {
+                                ForEach(projectOptions, id: \.self) { Text($0).tag($0) }
+                            }
+                            if draft.businessRatio < 1.0 {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Text("事業用: \(Int(draft.businessRatio * 100))%")
+                                            .font(.caption).bold()
+                                        Spacer()
+                                        if let amt = Double(draft.amountText) {
+                                            Text("計上: ¥\(Int(amt * draft.businessRatio))")
+                                                .font(.caption2).foregroundColor(.gray)
+                                        }
+                                    }
+                                    Slider(value: $draft.businessRatio, in: 0...1.0, step: 0.1).tint(.primary)
+                                }
+                            } else {
+                                Button {
+                                    withAnimation { draft.businessRatio = 0.5 }
+                                } label: {
+                                    Label("按分を設定する", systemImage: "percent")
+                                        .font(.caption).foregroundColor(.secondary)
+                                }
+                            }
+                            TextField("コメント（任意）", text: $draft.note, axis: .vertical)
+                                .lineLimit(2, reservesSpace: false)
+                        } header: {
+                            Text(draft.title.isEmpty ? "経費" : draft.title)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("まとめて編集")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("キャンセル") { dismiss() }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("保存", action: saveEdits)
+                        .fontWeight(.bold)
+                        .disabled(drafts.isEmpty)
+                }
+            }
+            .alert("保存エラー", isPresented: Binding(
+                get: { saveError != nil },
+                set: { if !$0 { saveError = nil } }
+            )) {
+                Button("OK") { saveError = nil }
+            } message: {
+                Text(saveError ?? "")
+            }
+            .onAppear {
+                drafts = expenses.map { BulkEditDraft(expense: $0) }
+            }
+        }
+    }
+
+    private func saveEdits() {
+        for draft in drafts {
+            guard let expense = expenses.first(where: { $0.persistentModelID == draft.id }) else { continue }
+            expense.title         = draft.title
+            expense.amount        = Double(draft.amountText) ?? expense.amount
+            expense.category      = draft.category
+            expense.project       = draft.project
+            expense.note          = draft.note
+            expense.businessRatio = draft.businessRatio
+            expense.timestamp     = draft.timestamp
         }
         do {
             try modelContext.save()
