@@ -1,13 +1,20 @@
 import SwiftUI
 import SwiftData
+import StoreKit
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.requestReview) private var requestReview
+
+    @Binding var showTutorial: Bool
 
     @State private var selectedTab = 0
     @AppStorage("taxRate") private var taxRate: Double = 0.2
-    @AppStorage("hasSeenTutorial") private var hasSeenTutorial = false
+    @AppStorage("expenseSavedCount") private var expenseSavedCount = 0
+    @AppStorage("hasRequestedReview") private var hasRequestedReview = false
+
+    @Query private var allExpenses: [ExpenseItem]
 
     // ジオフェンス通知から開く経費入力シート
     @State private var locationManager = LocationManager.shared
@@ -33,10 +40,10 @@ struct ContentView: View {
         }
         .accentColor(.primary)
         .overlay {
-            if !hasSeenTutorial {
+            if showTutorial {
                 AppTutorialView {
                     withAnimation(.easeOut(duration: 0.3)) {
-                        hasSeenTutorial = true
+                        showTutorial = false
                     }
                 }
                 .zIndex(100)
@@ -67,7 +74,6 @@ struct ContentView: View {
             processPendingWidgetExpenses()
             checkAndAddRecurringExpenses()
             refreshWidgetSnapshot()
-            // 通知権限をリクエスト（ジオフェンス通知のため）
             await locationManager.requestNotificationPermission()
         }
         .onChange(of: scenePhase) { _, newPhase in
@@ -75,6 +81,15 @@ struct ContentView: View {
             processPendingWidgetExpenses()
             checkAndAddRecurringExpenses()
             refreshWidgetSnapshot()
+        }
+        .onChange(of: allExpenses.count) { _, count in
+            // 経費が10件・30件に達したタイミングで一度だけレビュー依頼
+            guard !hasRequestedReview, count == 10 || count == 30 else { return }
+            Task {
+                try? await Task.sleep(for: .seconds(1))
+                requestReview()
+                hasRequestedReview = true
+            }
         }
     }
 

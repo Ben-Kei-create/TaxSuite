@@ -1692,6 +1692,12 @@ struct CalendarHistoryView: View {
                                             ? Color(red: 0.89, green: 0.96, blue: 0.90)
                                             : Color(UIColor.secondarySystemGroupedBackground)
                                     )
+                                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                        Button { editingExpense = expense } label: {
+                                            Label("編集", systemImage: "pencil")
+                                        }
+                                        .tint(.blue)
+                                    }
                                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                         Button(role: .destructive) {
                                             deleteDailyExpense(expense)
@@ -2031,6 +2037,7 @@ struct AllHistoryView: View {
     private var externalEditingExpense: Binding<ExpenseItem?>?
     @State private var viewMode: Int = 0
     @State private var localEditingExpense: ExpenseItem?
+    @State private var searchText = ""
 
     init(editingExpense: Binding<ExpenseItem?>? = nil) {
         self.externalEditingExpense = editingExpense
@@ -2040,12 +2047,21 @@ struct AllHistoryView: View {
         externalEditingExpense ?? $localEditingExpense
     }
 
-    var groupedByMonth: [(String, [ExpenseItem])] {
-        let dict = Dictionary(grouping: allExpenses) { item in
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy年MM月"
-            return formatter.string(from: item.timestamp)
+    private var filteredExpenses: [ExpenseItem] {
+        guard !searchText.isEmpty else { return allExpenses }
+        let q = searchText.lowercased()
+        return allExpenses.filter {
+            $0.title.lowercased().contains(q) ||
+            $0.category.lowercased().contains(q) ||
+            $0.project.lowercased().contains(q) ||
+            $0.note.lowercased().contains(q)
         }
+    }
+
+    var groupedByMonth: [(String, [ExpenseItem])] {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy年MM月"
+        let dict = Dictionary(grouping: filteredExpenses) { formatter.string(from: $0.timestamp) }
         return dict.sorted { $0.key > $1.key }
     }
 
@@ -2060,8 +2076,9 @@ struct AllHistoryView: View {
                 .padding()
 
                 List {
-                    if allExpenses.isEmpty {
-                        Text("まだ記録がありません").foregroundColor(.gray)
+                    if filteredExpenses.isEmpty {
+                        Text(searchText.isEmpty ? "まだ記録がありません" : "「\(searchText)」に一致する経費はありません")
+                            .foregroundColor(.gray)
                     } else if viewMode == 0 {
                         ForEach(groupedByMonth, id: \.0) { monthString, itemsInMonth in
                             Section(header: Text(monthString).taxSuiteListHeaderStyle()) {
@@ -2074,7 +2091,7 @@ struct AllHistoryView: View {
                             }
                         }
                     } else {
-                        ForEach(allExpenses) { expense in
+                        ForEach(filteredExpenses) { expense in
                             expenseRow(expense)
                         }
                         .onDelete(perform: deleteAllExpenses)
@@ -2085,6 +2102,7 @@ struct AllHistoryView: View {
         }
         .navigationTitle("すべての履歴")
         .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $searchText, prompt: "経費名・カテゴリ・プロジェクトで検索")
         .sheet(item: editingExpense) { expense in
             ExpenseEditView(expense: expense)
         }
@@ -3091,7 +3109,11 @@ struct SettingsView: View {
                     }
 
                     // MARK: - データ
-                    Section(header: Text("データ")) {
+                    Section(
+                        header: Text("データ"),
+                        footer: Text("⚠️ iCloud同期は現在準備中です。機種変更の前に必ずCSVで書き出してバックアップを取ってください。")
+                            .foregroundColor(.secondary)
+                    ) {
                         HStack {
                             settingsIconTile("doc.text", tint: .gray)
                             Text("書き出し形式")
@@ -3222,6 +3244,23 @@ struct SettingsView: View {
                             Spacer()
                         }
                         .padding(.vertical, 2)
+
+                        // ⚠️ RELEASE前必須: プライバシーポリシーの URL を差し替える
+                        if let privacyURL = URL(string: "https://your-privacy-policy-url.com") {
+                            Link(destination: privacyURL) {
+                                HStack(spacing: 12) {
+                                    settingsIconTile("hand.raised.fill", tint: .blue)
+                                    Text("プライバシーポリシー")
+                                        .font(.body.weight(.medium))
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    Image(systemName: "arrow.up.right.square")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.vertical, 2)
+                            }
+                        }
 
                         if let contactURL = URL(string: "mailto:support@taxsuite.app") {
                             Link(destination: contactURL) {
@@ -4772,8 +4811,10 @@ struct BulkExpenseEditView: View {
         }
         do {
             try modelContext.save()
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
             dismiss()
         } catch {
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
             saveError = error.localizedDescription
         }
     }
