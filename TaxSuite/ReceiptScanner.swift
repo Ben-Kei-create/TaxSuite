@@ -11,6 +11,7 @@ struct ParsedReceipt: Identifiable {
     var date: Date?
     var suggestedTitle: String
     var rawText: String
+    var thumbnailData: Data?
 }
 
 // MARK: - ReceiptParser
@@ -267,7 +268,9 @@ struct ReceiptScannerView: UIViewControllerRepresentable {
                     let lines = (request.results ?? [])
                         .compactMap { $0.topCandidates(1).first?.string }
 
-                    receipts.append(ReceiptParser.parse(from: lines))
+                    var receipt = ReceiptParser.parse(from: lines)
+                    receipt.thumbnailData = pageImage.jpegData(compressionQuality: 0.4)
+                    receipts.append(receipt)
                 }
 
                 DispatchQueue.main.async { self?.onParsedAll(receipts) }
@@ -360,6 +363,17 @@ struct ScannedReceiptReviewView: View {
         NavigationStack {
             TaxSuiteScreenSurface {
                 Form {
+                    if let thumbData = parsed.thumbnailData,
+                       let uiImage = UIImage(data: thumbData) {
+                        Section(header: Text("スキャン画像")) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: .infinity)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .padding(.vertical, 4)
+                        }
+                    }
                     // OCR confidence banner
                     if parsed.amount == nil || parsed.suggestedTitle.isEmpty {
                         Section {
@@ -577,7 +591,8 @@ struct ScannedReceiptReviewView: View {
         draft.project       = project
         draft.note          = note
         draft.date          = date
-        draft.businessRatio = businessRatio
+        draft.businessRatio  = businessRatio
+        draft.thumbnailData  = parsed.thumbnailData
         onConfirmed(draft)
         dismiss()
     }

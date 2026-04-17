@@ -1349,6 +1349,17 @@ struct ExpenseEditView: View {
         NavigationStack {
             TaxSuiteScreenSurface {
                 Form {
+                    if let thumbData = expense?.receiptThumbnailData,
+                       let uiImage = UIImage(data: thumbData) {
+                        Section(header: Text("領収書")) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: .infinity)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .padding(.vertical, 4)
+                        }
+                    }
                     // 必須項目（タイトル / 金額）が未入力のセルは、行の背景をほんのり赤く染めて
                     // 「ここが足りない」と視覚で伝える。保存ボタン側の disabled はそのまま。
                     Section(header: Text("項目名"), footer: suggestionFooter) {
@@ -4674,7 +4685,8 @@ struct ReceiptImportView: View {
                     category: draft.category,
                     project: draft.project,
                     businessRatio: draft.businessRatio,
-                    note: draft.note
+                    note: draft.note,
+                    receiptThumbnailData: draft.thumbnailData
                 )
             )
         }

@@ -59,6 +59,8 @@ final class ExpenseItem {
     /// 手動追加・ウィジェット・定期支出などから追加されたものは nil のまま。
     /// 一覧表示で「自動記録」バッジを出す判定に使う。
     var locationTriggerName: String? = nil
+    /// 領収書スキャン時に撮影された画像のJPEGサムネイル（40%品質）。スキャン以外の経費は nil。
+    var receiptThumbnailData: Data? = nil
 
     init(
         timestamp: Date = Date(),
@@ -69,7 +71,8 @@ final class ExpenseItem {
         businessRatio: Double = 1.0,
         note: String = "",
         recurringExpenseID: String? = nil,
-        locationTriggerName: String? = nil
+        locationTriggerName: String? = nil,
+        receiptThumbnailData: Data? = nil
     ) {
         self.timestamp = timestamp
         self.createdAt = Date()
@@ -81,6 +84,7 @@ final class ExpenseItem {
         self.note = note
         self.recurringExpenseID = recurringExpenseID
         self.locationTriggerName = locationTriggerName
+        self.receiptThumbnailData = receiptThumbnailData
     }
 
     var effectiveAmount: Double { amount * businessRatio }
@@ -1085,4 +1089,5 @@ struct ReceiptBatchDraft: Identifiable {
     var note: String = ""
     var date: Date = Date()
     var businessRatio: Double = 1.0
+    var thumbnailData: Data? = nil
 }
