@@ -211,7 +211,9 @@ struct AppTutorialView: View {
         let label = slides[currentSlide].tabLabel
         let index = tabItems.firstIndex(where: { $0.label == label }) ?? 0
         // 4タブ均等割りのセンター位置 (スクリーン幅を使えないのでUIScreen fallback)
-        let screenW = UIScreen.main.bounds.width - 48 // card horizontal padding
+        let screenW = (UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.screen.bounds.width ?? 390) - 48
         let slotW   = screenW / CGFloat(tabItems.count)
         return slotW * CGFloat(index) + slotW / 2 - screenW / 2
     }
