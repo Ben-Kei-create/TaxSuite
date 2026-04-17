@@ -15,6 +15,17 @@
 	<string>バックグラウンドでも位置情報を使用し、指定した場所に到着したときに自動で経費記録の通知をお送りします。位置情報はデバイス上のみで処理され、外部サーバーへ送信されることはありません。</string>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-4859622277330192~6857930301</string>
+	<key>GIDClientID</key>
+	<string>567203603342-shrclvaics7ndh7m8b5t26c436uacvi7.apps.googleusercontent.com</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.567203603342-shrclvaics7ndh7m8b5t26c436uacvi7</string>
+			</array>
+		</dict>
+	</array>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>
