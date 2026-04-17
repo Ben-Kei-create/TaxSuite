@@ -3166,11 +3166,20 @@ struct SettingsView: View {
                                     subtitle: "Gmailから自動で経費登録"
                                 )
                             }
+
+                            NavigationLink(destination: GoogleDriveExportView(taxRate: taxRate)) {
+                                settingsNavContent(
+                                    icon: "arrow.up.doc.fill",
+                                    tint: .green,
+                                    title: "Google Drive にエクスポート",
+                                    subtitle: "月別・日付別・カテゴリ別で自動整理"
+                                )
+                            }
                         } else {
                             HStack(spacing: 12) {
                                 settingsIconTile("lock.fill", tint: .gray)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("Gmail連携機能")
+                                    Text("Gmail / Drive 連携機能")
                                         .font(.body.weight(.medium))
                                         .foregroundColor(.secondary)
                                     Text("ログイン後に解放されます")
@@ -3930,6 +3939,457 @@ struct GoogleSignInRow: View {
         } message: {
             Text(authError ?? "不明なエラーが発生しました。")
         }
+    }
+}
+
+// MARK: - GoogleDriveExportView
+
+enum DriveOrganizationStyle: String, CaseIterable, Identifiable {
+    case byDate     = "日付別"
+    case byCategory = "カテゴリ別"
+    case both       = "両方"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .byDate:     return "calendar"
+        case .byCategory: return "tag.fill"
+        case .both:       return "square.grid.2x2.fill"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .byDate:     return "日ごとに1ファイル出力"
+        case .byCategory: return "カテゴリごとに1ファイル出力"
+        case .both:       return "日付別・カテゴリ別の両方のフォルダを作成"
+        }
+    }
+}
+
+struct GoogleDriveExportView: View {
+    @Query(sort: \ExpenseItem.timestamp, order: .forward) private var allExpenses: [ExpenseItem]
+    @Query(sort: \IncomeItem.timestamp, order: .forward)  private var allIncomes: [IncomeItem]
+
+    let taxRate: Double
+
+    @State private var authService = GoogleAuthService.shared
+
+    // 対象期間
+    private var currentYear: Int { Calendar.current.component(.year, from: Date()) }
+    @State private var startYear: Int  = Calendar.current.component(.year, from: Date())
+    @State private var startMonth: Int = Calendar.current.component(.month, from: Date())
+    @State private var endYear: Int    = Calendar.current.component(.year, from: Date())
+    @State private var endMonth: Int   = Calendar.current.component(.month, from: Date())
+
+    // オプション
+    @State private var organizationStyle: DriveOrganizationStyle = .both
+    @State private var exportFormat: ExportFormat = .standard
+
+    // 状態
+    @State private var isExporting    = false
+    @State private var progressMessage = ""
+    @State private var exportError: String?
+    @State private var exportSuccess  = false
+
+    private let calendar   = Calendar.current
+    private let monthNames = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"]
+
+    var body: some View {
+        TaxSuiteScreenSurface {
+            List {
+                Section {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Google Drive エクスポート")
+                            .font(.title3.bold())
+                        Text("経費データをフォルダ構造で整理してGoogle Driveへ保存します。税理士への共有や自分管理にご活用ください。")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.vertical, 2)
+                }
+
+                // 期間選択
+                Section("対象期間") {
+                    HStack {
+                        Text("開始月")
+                            .font(.body.weight(.medium))
+                        Spacer()
+                        Picker("年", selection: $startYear) {
+                            ForEach((currentYear - 2)...currentYear, id: \.self) { y in
+                                Text("\(y)年").tag(y)
+                            }
+                        }
+                        .pickerStyle(.menu).tint(.primary)
+                        Picker("月", selection: $startMonth) {
+                            ForEach(1...12, id: \.self) { m in
+                                Text(monthNames[m - 1]).tag(m)
+                            }
+                        }
+                        .pickerStyle(.menu).tint(.primary)
+                    }
+
+                    HStack {
+                        Text("終了月")
+                            .font(.body.weight(.medium))
+                        Spacer()
+                        Picker("年", selection: $endYear) {
+                            ForEach((currentYear - 2)...currentYear, id: \.self) { y in
+                                Text("\(y)年").tag(y)
+                            }
+                        }
+                        .pickerStyle(.menu).tint(.primary)
+                        Picker("月", selection: $endMonth) {
+                            ForEach(1...12, id: \.self) { m in
+                                Text(monthNames[m - 1]).tag(m)
+                            }
+                        }
+                        .pickerStyle(.menu).tint(.primary)
+                    }
+
+                    if monthCount > 0 {
+                        HStack(spacing: 6) {
+                            Image(systemName: "calendar.badge.checkmark")
+                                .font(.caption).foregroundColor(.blue)
+                            Text("\(monthCount)ヶ月分をエクスポートします")
+                                .font(.caption).foregroundColor(.secondary)
+                        }
+                    } else {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.caption).foregroundColor(.orange)
+                            Text("開始月が終了月より後になっています")
+                                .font(.caption).foregroundColor(.orange)
+                        }
+                    }
+                }
+
+                // フォルダ構成
+                Section("フォルダ構成") {
+                    ForEach(DriveOrganizationStyle.allCases) { style in
+                        Button { organizationStyle = style } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: style.icon)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(organizationStyle == style ? .white : .accentColor)
+                                    .frame(width: 28, height: 28)
+                                    .background(organizationStyle == style ? Color.accentColor : Color.accentColor.opacity(0.1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(style.rawValue)
+                                        .font(.body.weight(.medium))
+                                        .foregroundColor(.primary)
+                                    Text(style.description)
+                                        .font(.caption2).foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                if organizationStyle == style {
+                                    Image(systemName: "checkmark")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundColor(.accentColor)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    folderStructurePreview
+                }
+
+                // CSV形式
+                Section("CSV形式") {
+                    Picker("書き出し形式", selection: $exportFormat) {
+                        ForEach(ExportFormat.allCases) { f in Text(f.rawValue).tag(f) }
+                    }
+                    .pickerStyle(.menu).tint(.primary)
+                    Text(exportFormat.subtitle)
+                        .font(.caption2).foregroundColor(.secondary)
+                }
+
+                // エクスポートボタン
+                Section {
+                    if isExporting {
+                        VStack(spacing: 14) {
+                            ProgressView().scaleEffect(1.2)
+                            Text(progressMessage)
+                                .font(.caption).foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                    } else {
+                        Button { Task { await exportToDrive() } } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "arrow.up.doc.fill")
+                                    .font(.system(size: 15, weight: .semibold))
+                                Text("Google Drive にエクスポート")
+                                    .fontWeight(.semibold)
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(monthCount > 0 ? Color.blue : Color.gray.opacity(0.5))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(monthCount <= 0)
+                    }
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            }
+            .listStyle(.insetGrouped)
+        }
+        .navigationTitle("Drive 連携")
+        .navigationBarTitleDisplayMode(.inline)
+        .alert("エクスポートエラー", isPresented: Binding(
+            get: { exportError != nil },
+            set: { if !$0 { exportError = nil } }
+        )) {
+            Button("OK") { exportError = nil }
+        } message: {
+            Text(exportError ?? "")
+        }
+        .alert("エクスポート完了", isPresented: $exportSuccess) {
+            Button("OK") {}
+        } message: {
+            Text("TaxSuiteフォルダにエクスポートしました。\nGoogle Driveアプリでご確認ください。")
+        }
+    }
+
+    // MARK: - Folder structure preview
+
+    private var folderStructurePreview: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("フォルダ構成のプレビュー")
+                .font(.caption2.weight(.semibold))
+                .foregroundColor(.secondary)
+                .padding(.bottom, 2)
+
+            previewRow("📁 TaxSuite/", indent: 0)
+            previewRow("📁 2026年04月/", indent: 1)
+
+            switch organizationStyle {
+            case .byDate:
+                previewRow("📄 2026-04-01.csv  ← 1日分の経費",  indent: 2)
+                previewRow("📄 2026-04-15.csv",                   indent: 2)
+                previewRow("📄 月次サマリー.csv ← 収支・税額",   indent: 2)
+                previewRow("📄 売上.csv",                          indent: 2)
+            case .byCategory:
+                previewRow("📄 交通費.csv  ← 月の交通費まとめ", indent: 2)
+                previewRow("📄 会議費.csv",                        indent: 2)
+                previewRow("📄 月次サマリー.csv ← 収支・税額",   indent: 2)
+                previewRow("📄 売上.csv",                          indent: 2)
+            case .both:
+                previewRow("📁 日付別/",                           indent: 2)
+                previewRow("📄 2026-04-01.csv",                    indent: 3)
+                previewRow("📁 カテゴリ別/",                       indent: 2)
+                previewRow("📄 交通費.csv",                        indent: 3)
+                previewRow("📄 月次サマリー.csv ← 収支・税額",   indent: 2)
+                previewRow("📄 売上.csv",                          indent: 2)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func previewRow(_ text: String, indent: Int) -> some View {
+        Text(String(repeating: "  ", count: indent) + text)
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundColor(.secondary)
+    }
+
+    // MARK: - Computed
+
+    private var monthCount: Int {
+        let s = firstDay(year: startYear, month: startMonth)
+        let e = firstDay(year: endYear,   month: endMonth)
+        guard e >= s else { return 0 }
+        return (calendar.dateComponents([.month], from: s, to: e).month ?? 0) + 1
+    }
+
+    private func firstDay(year: Int, month: Int) -> Date {
+        var c = DateComponents(); c.year = year; c.month = month; c.day = 1
+        return calendar.date(from: c) ?? Date()
+    }
+
+    private func monthsInRange() -> [(year: Int, month: Int)] {
+        var result: [(Int, Int)] = []
+        var y = startYear; var m = startMonth
+        let endDate = firstDay(year: endYear, month: endMonth)
+        repeat {
+            result.append((y, m))
+            let cur = firstDay(year: y, month: m)
+            guard cur < endDate else { break }
+            m += 1; if m > 12 { m = 1; y += 1 }
+        } while true
+        return result
+    }
+
+    // MARK: - Export
+
+    @MainActor
+    private func exportToDrive() async {
+        isExporting = true
+        progressMessage = "準備中..."
+
+        do {
+            let token  = try await GoogleAuthService.shared.freshAccessToken()
+            let drive  = GoogleDriveService.shared
+            let months = monthsInRange()
+
+            progressMessage = "TaxSuiteフォルダを確認中..."
+            let rootID = try await drive.findOrCreateRootFolder(token: token)
+
+            for (index, (year, month)) in months.enumerated() {
+                let label = "\(year)年\(String(format: "%02d", month))月"
+                progressMessage = "\(label) をエクスポート中... (\(index + 1)/\(months.count))"
+
+                let monthFolderID = try await drive.findOrCreateFolder(
+                    name: "\(year)年\(String(format: "%02d", month))月",
+                    parentID: rootID, token: token
+                )
+                let monthDate = firstDay(year: year, month: month)
+
+                let expenses = allExpenses.filter {
+                    calendar.isDate($0.timestamp, equalTo: monthDate, toGranularity: .month)
+                }
+                let incomes = allIncomes.filter {
+                    calendar.isDate($0.timestamp, equalTo: monthDate, toGranularity: .month)
+                }
+
+                // 月次サマリー（常に出力）
+                try await drive.uploadCSV(
+                    csvString: makeSummaryCSV(expenses: expenses, incomes: incomes),
+                    fileName: "月次サマリー.csv",
+                    parentID: monthFolderID, token: token
+                )
+
+                // 売上 CSV
+                if !incomes.isEmpty {
+                    try await drive.uploadCSV(
+                        csvString: makeIncomeCSV(incomes: incomes),
+                        fileName: "売上.csv",
+                        parentID: monthFolderID, token: token
+                    )
+                }
+
+                // 日付別
+                if organizationStyle == .byDate || organizationStyle == .both {
+                    let targetID: String
+                    if organizationStyle == .both {
+                        targetID = try await drive.findOrCreateFolder(name: "日付別", parentID: monthFolderID, token: token)
+                    } else {
+                        targetID = monthFolderID
+                    }
+                    let byDay = Dictionary(grouping: expenses) { isoDate(from: $0.timestamp) }
+                    for (dateStr, dayExpenses) in byDay.sorted(by: { $0.key < $1.key }) {
+                        try await drive.uploadCSV(
+                            csvString: makeDailyCSV(expenses: dayExpenses),
+                            fileName: "\(dateStr).csv",
+                            parentID: targetID, token: token
+                        )
+                    }
+                }
+
+                // カテゴリ別
+                if organizationStyle == .byCategory || organizationStyle == .both {
+                    let targetID: String
+                    if organizationStyle == .both {
+                        targetID = try await drive.findOrCreateFolder(name: "カテゴリ別", parentID: monthFolderID, token: token)
+                    } else {
+                        targetID = monthFolderID
+                    }
+                    let byCategory = Dictionary(grouping: expenses) { $0.category }
+                    for (category, catExpenses) in byCategory.sorted(by: { $0.key < $1.key }) {
+                        let safeName = category.replacingOccurrences(of: "/", with: "・")
+                        try await drive.uploadCSV(
+                            csvString: makeCategoryCSV(expenses: catExpenses),
+                            fileName: "\(safeName).csv",
+                            parentID: targetID, token: token
+                        )
+                    }
+                }
+            }
+
+            isExporting  = false
+            exportSuccess = true
+
+        } catch {
+            isExporting  = false
+            exportError  = error.localizedDescription
+        }
+    }
+
+    // MARK: - CSV builders
+
+    private func makeSummaryCSV(expenses: [ExpenseItem], incomes: [IncomeItem]) -> String {
+        let revenue     = incomes.reduce(0)  { $0 + $1.amount }
+        let expTotal    = expenses.reduce(0) { $0 + $1.effectiveAmount }
+        let tax         = TaxCalculator.calculateTax(revenue: revenue, expenses: expTotal, taxRate: taxRate)
+        let takeHome    = TaxCalculator.calculateTakeHome(revenue: revenue, expenses: expTotal, taxRate: taxRate)
+
+        var lines = ["項目,金額"]
+        lines += [
+            "売上合計,\(Int(revenue))",
+            "経費合計,\(Int(expTotal))",
+            "推定税額,\(Int(tax))",
+            "推定手取り,\(Int(takeHome))",
+            "経費件数,\(expenses.count)",
+            "売上件数,\(incomes.count)",
+            ",",
+            "カテゴリ,経費合計"
+        ]
+        let byCategory = Dictionary(grouping: expenses) { $0.category }
+        for (cat, items) in byCategory.sorted(by: { $0.key < $1.key }) {
+            lines.append("\(q(cat)),\(Int(items.reduce(0) { $0 + $1.effectiveAmount }))")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private func makeDailyCSV(expenses: [ExpenseItem]) -> String {
+        let header = "日時,項目名,金額,カテゴリ,プロジェクト,事業割合,実質金額,コメント"
+        let rows = expenses.sorted { $0.timestamp < $1.timestamp }.map { e in
+            [isoDatetime(from: e.timestamp), q(e.title), "\(Int(e.amount))",
+             q(e.category), q(e.project), String(format: "%.2f", e.businessRatio),
+             "\(Int(e.effectiveAmount))", q(e.note)].joined(separator: ",")
+        }
+        return ([header] + rows).joined(separator: "\n")
+    }
+
+    private func makeCategoryCSV(expenses: [ExpenseItem]) -> String {
+        let header = "日時,項目名,金額,プロジェクト,事業割合,実質金額,コメント"
+        let rows = expenses.sorted { $0.timestamp < $1.timestamp }.map { e in
+            [isoDatetime(from: e.timestamp), q(e.title), "\(Int(e.amount))",
+             q(e.project), String(format: "%.2f", e.businessRatio),
+             "\(Int(e.effectiveAmount))", q(e.note)].joined(separator: ",")
+        }
+        return ([header] + rows).joined(separator: "\n")
+    }
+
+    private func makeIncomeCSV(incomes: [IncomeItem]) -> String {
+        let header = "日時,項目名,金額,プロジェクト"
+        let rows = incomes.sorted { $0.timestamp < $1.timestamp }.map { i in
+            [isoDate(from: i.timestamp), q(i.title), "\(Int(i.amount))", q(i.project)].joined(separator: ",")
+        }
+        return ([header] + rows).joined(separator: "\n")
+    }
+
+    // MARK: - Helpers
+
+    private func isoDate(from date: Date) -> String {
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: date)
+    }
+
+    private func isoDatetime(from date: Date) -> String {
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd HH:mm"
+        return f.string(from: date)
+    }
+
+    private func q(_ value: String) -> String {
+        "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
     }
 }
 
