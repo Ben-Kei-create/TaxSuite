@@ -88,7 +88,7 @@ actor GmailAPIService {
         guard let mimeData = mimeString.data(using: .utf8) else {
             throw GmailAPIError.invalidRequest
         }
-        let encoded = mimeData.base64URLEncoded()
+        let encoded = base64URLEncoded(mimeData)
 
         guard let url = URL(string: "\(baseURL)/drafts") else {
             throw GmailAPIError.invalidRequest
@@ -128,7 +128,7 @@ actor GmailAPIService {
         guard let mimeData = mimeString.data(using: .utf8) else {
             throw GmailAPIError.invalidRequest
         }
-        let encoded = mimeData.base64URLEncoded()
+        let encoded = base64URLEncoded(mimeData)
 
         guard let url = URL(string: "\(baseURL)/messages/send") else {
             throw GmailAPIError.invalidRequest
@@ -216,13 +216,9 @@ actor GmailAPIService {
 
 // MARK: - Data + base64url
 
-private extension Data {
-    /// Gmail API が要求する base64url エンコード（RFC 4648 §5）。
-    /// 通常の base64 から `+`→`-`、`/`→`_`、パディング `=` を除去する。
-    func base64URLEncoded() -> String {
-        base64EncodedString()
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: "=", with: "")
-    }
+private func base64URLEncoded(_ data: Data) -> String {
+    data.base64EncodedString()
+        .replacingOccurrences(of: "+", with: "-")
+        .replacingOccurrences(of: "/", with: "_")
+        .replacingOccurrences(of: "=", with: "")
 }

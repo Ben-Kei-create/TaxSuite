@@ -464,7 +464,7 @@ struct LocationTriggerEditView: View {
     }
 
     private func selectSearchResult(_ item: MKMapItem) {
-        let coord = item.placemark.coordinate
+        let coord = item.location.coordinate
         pinCoordinate = coord
         name = item.name ?? name
         cameraPosition = .region(MKCoordinateRegion(
