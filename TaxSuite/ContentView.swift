@@ -7,6 +7,7 @@ struct ContentView: View {
 
     @State private var selectedTab = 0
     @AppStorage("taxRate") private var taxRate: Double = 0.2
+    @AppStorage("hasSeenTutorial") private var hasSeenTutorial = false
 
     // ジオフェンス通知から開く経費入力シート
     @State private var locationManager = LocationManager.shared
@@ -31,6 +32,16 @@ struct ContentView: View {
                 .tag(3)
         }
         .accentColor(.primary)
+        .overlay {
+            if !hasSeenTutorial {
+                AppTutorialView {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        hasSeenTutorial = true
+                    }
+                }
+                .zIndex(100)
+            }
+        }
         // ジオフェンス通知タップ → 経費入力シートを開く
         .sheet(isPresented: $showingGeofenceExpenseSheet, onDismiss: {
             locationManager.pendingGeofenceExpense = nil
