@@ -32,12 +32,7 @@ extension View {
 
 struct TaxSuiteBannerHeader: View {
     var body: some View {
-        AdBannerView()
-            .frame(height: 50)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 16)
-            .padding(.top, 6)
-            .padding(.bottom, 2)
+        EmptyView()
     }
 }
 
