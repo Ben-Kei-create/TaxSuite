@@ -61,6 +61,8 @@ final class ExpenseItem {
     var locationTriggerName: String? = nil
     /// 領収書スキャン時に撮影された画像のJPEGサムネイル（40%品質）。スキャン以外の経費は nil。
     var receiptThumbnailData: Data? = nil
+    /// 領収書スキャン時に保存した元画像ファイル名。空文字の場合は保存画像なし。
+    var receiptImageFileName: String = ""
 
     init(
         timestamp: Date = Date(),
@@ -72,7 +74,8 @@ final class ExpenseItem {
         note: String = "",
         recurringExpenseID: String? = nil,
         locationTriggerName: String? = nil,
-        receiptThumbnailData: Data? = nil
+        receiptThumbnailData: Data? = nil,
+        receiptImageFileName: String = ""
     ) {
         self.timestamp = timestamp
         self.createdAt = Date()
@@ -85,6 +88,7 @@ final class ExpenseItem {
         self.recurringExpenseID = recurringExpenseID
         self.locationTriggerName = locationTriggerName
         self.receiptThumbnailData = receiptThumbnailData
+        self.receiptImageFileName = receiptImageFileName
     }
 
     var effectiveAmount: Double { amount * businessRatio }
@@ -1090,4 +1094,5 @@ struct ReceiptBatchDraft: Identifiable {
     var date: Date = Date()
     var businessRatio: Double = 1.0
     var thumbnailData: Data? = nil
+    var imageFileName: String? = nil
 }

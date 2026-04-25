@@ -12,6 +12,7 @@ struct ParsedReceipt: Identifiable {
     var suggestedTitle: String
     var rawText: String
     var thumbnailData: Data?
+    var imageFileName: String?
 }
 
 // MARK: - ReceiptParser
@@ -268,8 +269,15 @@ struct ReceiptScannerView: UIViewControllerRepresentable {
                     let lines = (request.results ?? [])
                         .compactMap { $0.topCandidates(1).first?.string }
 
+                    let fullImageData = pageImage.jpegData(compressionQuality: 0.9)
                     var receipt = ReceiptParser.parse(from: lines)
                     receipt.thumbnailData = pageImage.jpegData(compressionQuality: 0.4)
+                    if let fullImageData {
+                        receipt.imageFileName = try? ReceiptImageStore.saveJPEGData(
+                            fullImageData,
+                            pageIndex: pageIndex
+                        )
+                    }
                     receipts.append(receipt)
                 }
 
@@ -320,6 +328,10 @@ struct ScannedReceiptReviewView: View {
     @State private var hasManualCategoryOverride: Bool
     @State private var hasManualProjectOverride: Bool
     @State private var isApplyingSuggestion: Bool
+    @State private var exportURLs: [URL]
+    @State private var shareItems: [Any]
+    @State private var showingDocumentExporter: Bool
+    @State private var showingShareSheet: Bool
 
     private let categoryOptions = ExpenseAutofillPredictor.defaultCategories
     private var projectOptions: [String] {
@@ -356,6 +368,10 @@ struct ScannedReceiptReviewView: View {
         _hasManualCategoryOverride = State(initialValue: false)
         _hasManualProjectOverride = State(initialValue: false)
         _isApplyingSuggestion = State(initialValue: false)
+        _exportURLs = State(initialValue: [])
+        _shareItems = State(initialValue: [])
+        _showingDocumentExporter = State(initialValue: false)
+        _showingShareSheet = State(initialValue: false)
     }
 
     var body: some View {
@@ -372,6 +388,23 @@ struct ScannedReceiptReviewView: View {
                                 .frame(maxWidth: .infinity)
                                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                 .padding(.vertical, 4)
+
+                            if let imageURL = receiptImageURL {
+                                HStack(spacing: 12) {
+                                    Button {
+                                        exportReceiptImages([imageURL])
+                                    } label: {
+                                        Label("ファイルへ保存", systemImage: "folder.badge.plus")
+                                    }
+
+                                    Button {
+                                        shareReceiptImages([imageURL])
+                                    } label: {
+                                        Label("共有", systemImage: "square.and.arrow.up")
+                                    }
+                                }
+                                .font(.caption.weight(.semibold))
+                            }
                         }
                     }
                     // OCR confidence banner
@@ -504,11 +537,8 @@ struct ScannedReceiptReviewView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("スキップ") {
-                        onSkip()
-                        dismiss()
-                    }
-                    .foregroundColor(.secondary)
+                    Button("スキップ", action: skipReceipt)
+                        .foregroundColor(.secondary)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("リストへ追加", action: confirm)
@@ -518,6 +548,12 @@ struct ScannedReceiptReviewView: View {
             }
             .onAppear { applySuggestion(for: title) }
             .onChange(of: title) { _, newTitle in applySuggestion(for: newTitle) }
+            .sheet(isPresented: $showingDocumentExporter) {
+                DocumentExportPicker(urls: exportURLs)
+            }
+            .sheet(isPresented: $showingShareSheet) {
+                ShareSheet(activityItems: shareItems, subject: "領収書画像")
+            }
         }
     }
 
@@ -593,7 +629,28 @@ struct ScannedReceiptReviewView: View {
         draft.date          = date
         draft.businessRatio  = businessRatio
         draft.thumbnailData  = parsed.thumbnailData
+        draft.imageFileName  = parsed.imageFileName
         onConfirmed(draft)
+        dismiss()
+    }
+
+    private var receiptImageURL: URL? {
+        ReceiptImageStore.url(forFileName: parsed.imageFileName)
+    }
+
+    private func exportReceiptImages(_ urls: [URL]) {
+        exportURLs = urls
+        showingDocumentExporter = true
+    }
+
+    private func shareReceiptImages(_ urls: [URL]) {
+        shareItems = urls
+        showingShareSheet = true
+    }
+
+    private func skipReceipt() {
+        ReceiptImageStore.delete(fileName: parsed.imageFileName)
+        onSkip()
         dismiss()
     }
 }

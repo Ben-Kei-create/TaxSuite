@@ -79,6 +79,18 @@ struct ShareSheet: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
+struct DocumentExportPicker: UIViewControllerRepresentable {
+    let urls: [URL]
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let controller = UIDocumentPickerViewController(forExporting: urls, asCopy: true)
+        controller.shouldShowFileExtensions = true
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+}
+
 struct DashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var allExpenses: [ExpenseItem]
@@ -1287,6 +1299,10 @@ struct ExpenseEditView: View {
     @State private var isApplyingSuggestion = false
     @State private var hasManualCategoryOverride = false
     @State private var hasManualProjectOverride = false
+    @State private var exportURLs: [URL] = []
+    @State private var shareItems: [Any] = []
+    @State private var showingDocumentExporter = false
+    @State private var showingShareSheet = false
 
     private var categoryOptions: [String] {
         ExpenseAutofillPredictor.categoryOptions(from: expenseHistory)
@@ -1359,6 +1375,23 @@ struct ExpenseEditView: View {
                                 .frame(maxWidth: .infinity)
                                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                 .padding(.vertical, 4)
+
+                            if let imageURL = expenseReceiptImageURL {
+                                HStack(spacing: 12) {
+                                    Button {
+                                        exportReceiptImages([imageURL])
+                                    } label: {
+                                        Label("画像をファイルへ保存", systemImage: "folder.badge.plus")
+                                    }
+
+                                    Button {
+                                        shareReceiptImages([imageURL])
+                                    } label: {
+                                        Label("共有", systemImage: "square.and.arrow.up")
+                                    }
+                                }
+                                .font(.caption.weight(.semibold))
+                            }
                         }
                     }
                     // 必須項目（タイトル / 金額）が未入力のセルは、行の背景をほんのり赤く染めて
@@ -1460,6 +1493,12 @@ struct ExpenseEditView: View {
                 guard expense == nil else { return }
                 applySuggestion(for: newTitle)
             }
+            .sheet(isPresented: $showingDocumentExporter) {
+                DocumentExportPicker(urls: exportURLs)
+            }
+            .sheet(isPresented: $showingShareSheet) {
+                ShareSheet(activityItems: shareItems, subject: "領収書画像")
+            }
         }
     }
 
@@ -1528,9 +1567,25 @@ struct ExpenseEditView: View {
 
     private func deleteExpense() {
         guard let expense else { return }
+        let receiptImageFileName = expense.receiptImageFileName
         modelContext.delete(expense)
         try? modelContext.save()
+        ReceiptImageStore.delete(fileName: receiptImageFileName)
         dismiss()
+    }
+
+    private var expenseReceiptImageURL: URL? {
+        ReceiptImageStore.url(forFileName: expense?.receiptImageFileName)
+    }
+
+    private func exportReceiptImages(_ urls: [URL]) {
+        exportURLs = urls
+        showingDocumentExporter = true
+    }
+
+    private func shareReceiptImages(_ urls: [URL]) {
+        shareItems = urls
+        showingShareSheet = true
     }
 
     private func applySuggestion(for rawTitle: String) {
@@ -4496,6 +4551,11 @@ struct ReceiptImportView: View {
     /// キューの先頭を確認中かどうか
     @State private var showingReview = false
     @State private var saveError: String?
+    @State private var exportURLs: [URL] = []
+    @State private var shareItems: [Any] = []
+    @State private var showingDocumentExporter = false
+    @State private var showingShareSheet = false
+    @State private var didPersistDrafts = false
 
     private let categoryOptions = ExpenseAutofillPredictor.defaultCategories
     private var projectOptions: [String] {
@@ -4541,6 +4601,24 @@ struct ReceiptImportView: View {
                                 .font(.caption.weight(.semibold))
                                 .foregroundColor(.orange)
                         }
+
+                        if !draftReceiptImageURLs.isEmpty {
+                            HStack(spacing: 12) {
+                                Button {
+                                    exportReceiptImages(draftReceiptImageURLs)
+                                } label: {
+                                    Label("\(draftReceiptImageURLs.count)枚をファイルへ保存", systemImage: "folder.badge.plus")
+                                }
+
+                                Button {
+                                    shareReceiptImages(draftReceiptImageURLs)
+                                } label: {
+                                    Label("共有", systemImage: "square.and.arrow.up")
+                                }
+                            }
+                            .font(.caption.weight(.semibold))
+                            .padding(.top, 4)
+                        }
                     }
 
                     // スキャン・手動追加された明細（編集可）
@@ -4580,13 +4658,30 @@ struct ReceiptImportView: View {
                                 }
                                 TextField("コメント（任意）", text: $draft.note, axis: .vertical)
                                     .lineLimit(2, reservesSpace: false)
+
+                                if let imageURL = ReceiptImageStore.url(forFileName: draft.imageFileName) {
+                                    HStack(spacing: 12) {
+                                        Button {
+                                            exportReceiptImages([imageURL])
+                                        } label: {
+                                            Label("画像をファイルへ保存", systemImage: "folder.badge.plus")
+                                        }
+
+                                        Button {
+                                            shareReceiptImages([imageURL])
+                                        } label: {
+                                            Label("共有", systemImage: "square.and.arrow.up")
+                                        }
+                                    }
+                                    .font(.caption.weight(.semibold))
+                                }
                             } header: {
                                 HStack {
                                     Text("明細")
                                     Spacer()
                                     // 個別削除ボタン
                                     Button {
-                                        withAnimation { drafts.removeAll { $0.id == draft.id } }
+                                        withAnimation { removeDraft(draft) }
                                     } label: {
                                         Image(systemName: "minus.circle.fill")
                                             .foregroundColor(.red)
@@ -4613,7 +4708,7 @@ struct ReceiptImportView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("キャンセル") { dismiss() }
+                    Button("キャンセル", action: cancelImport)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("保存", action: saveDrafts)
@@ -4656,6 +4751,22 @@ struct ReceiptImportView: View {
             } message: {
                 Text(saveError ?? "")
             }
+            .sheet(isPresented: $showingDocumentExporter) {
+                DocumentExportPicker(urls: exportURLs)
+            }
+            .sheet(isPresented: $showingShareSheet) {
+                ShareSheet(activityItems: shareItems, subject: "領収書画像")
+            }
+            .onDisappear {
+                guard !didPersistDrafts,
+                      !showingScanner,
+                      !showingReview,
+                      !showingDocumentExporter,
+                      !showingShareSheet else {
+                    return
+                }
+                cleanupUnsavedReceiptImages()
+            }
         }
     }
 
@@ -4675,8 +4786,39 @@ struct ReceiptImportView: View {
         }
     }
 
+    private var draftReceiptImageURLs: [URL] {
+        drafts.compactMap { ReceiptImageStore.url(forFileName: $0.imageFileName) }
+    }
+
+    private func exportReceiptImages(_ urls: [URL]) {
+        exportURLs = urls
+        showingDocumentExporter = true
+    }
+
+    private func shareReceiptImages(_ urls: [URL]) {
+        shareItems = urls
+        showingShareSheet = true
+    }
+
+    private func removeDraft(_ draft: ReceiptBatchDraft) {
+        ReceiptImageStore.delete(fileName: draft.imageFileName)
+        drafts.removeAll { $0.id == draft.id }
+    }
+
+    private func cancelImport() {
+        cleanupUnsavedReceiptImages()
+        dismiss()
+    }
+
+    private func cleanupUnsavedReceiptImages() {
+        ReceiptImageStore.delete(fileNames: drafts.map(\.imageFileName) + pendingReceipts.map(\.imageFileName))
+    }
+
     private func saveDrafts() {
-        for draft in validDrafts {
+        let draftsToSave = validDrafts
+        let savedDraftIDs = Set(draftsToSave.map(\.id))
+
+        for draft in draftsToSave {
             modelContext.insert(
                 ExpenseItem(
                     timestamp: draft.date,
@@ -4686,12 +4828,18 @@ struct ReceiptImportView: View {
                     project: draft.project,
                     businessRatio: draft.businessRatio,
                     note: draft.note,
-                    receiptThumbnailData: draft.thumbnailData
+                    receiptThumbnailData: draft.thumbnailData,
+                    receiptImageFileName: draft.imageFileName ?? ""
                 )
             )
         }
         do {
             try modelContext.save()
+            let discardedFileNames = drafts
+                .filter { !savedDraftIDs.contains($0.id) }
+                .map(\.imageFileName) + pendingReceipts.map(\.imageFileName)
+            ReceiptImageStore.delete(fileNames: discardedFileNames)
+            didPersistDrafts = true
             dismiss()
         } catch {
             saveError = error.localizedDescription
